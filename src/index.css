@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+
+/* Design tokens, shared with the member app (Seoulaim_web src/index.css)
+   plus a few admin-only ones. Use as bg-point, text-sub, etc. */
+@theme {
+  --color-point: #ff8fb1;
+  --color-point-strong: #ff6b9c;
+  --color-point-soft: #ffe9ef;
+  --color-text: #212121;
+  --color-muted: #6b6b6b;
+  --color-sub: #9d9d9d;
+  --color-line: #bababa;
+  --color-border: #eaeaea;
+  --color-chip: #f5f6f7;
+
+  /* Admin: page background behind the cards, and status chips. */
+  --color-panel: #f7f7f9;
+  --color-warn: #b25e00;
+  --color-warn-soft: #fff1e0;
+  --color-ok: #1f7a46;
+  --color-ok-soft: #e6f5ec;
+  --color-danger: #d93a3f;
+  --color-info: #2a62c9;
+  --color-info-soft: #e8f0fd;
+  /* Where a promotion shows: HOME uses the point pink, DIARY this purple. */
+  --color-diary: #6a4bc9;
+  --color-diary-soft: #efeafd;
+
+  --font-sans: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+
+body {
+  @apply bg-panel font-sans text-text antialiased;
+}
