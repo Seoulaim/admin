@@ -13,6 +13,7 @@ function LocalizedInput({
   required = false,
   multiline = false,
   columns = false,
+  rows = 2,
   invalid = false,
   maxLength,
 }) {
@@ -48,7 +49,7 @@ function LocalizedInput({
             }
             aria-invalid={language.id === 'en' && invalid}
             maxLength={maxLength}
-            rows={multiline ? 2 : undefined}
+            rows={multiline ? rows : undefined}
             className={`${inputClass} ${multiline ? 'resize-y py-2 leading-snug' : 'h-10'}`}
           />
         </div>

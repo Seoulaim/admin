@@ -1,6 +1,5 @@
 import { createBrowserRouter, redirect } from 'react-router'
 import AdminLayout from './components/layout/AdminLayout.jsx'
-import { MENU_ITEMS } from './menu.js'
 import ArtistsPage from './pages/artists/ArtistsPage.jsx'
 import GroupFormPage from './pages/artists/GroupFormPage.jsx'
 import DashboardPage from './pages/dashboard/DashboardPage.jsx'
@@ -12,20 +11,25 @@ import CafeFormPage from './pages/events/CafeFormPage.jsx'
 import EntryFormPage from './pages/events/EntryFormPage.jsx'
 import EventsPage from './pages/events/EventsPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
+import InquiriesPage from './pages/inquiries/InquiriesPage.jsx'
+import AutoMailsPage from './pages/mail/AutoMailsPage.jsx'
+import ComposePage from './pages/mail/ComposePage.jsx'
+import MailHistoryPage from './pages/mail/HistoryPage.jsx'
+import PaymentsPage from './pages/payments/PaymentsPage.jsx'
+import MemberDetailPage from './pages/members/MemberDetailPage.jsx'
+import MembersPage from './pages/members/MembersPage.jsx'
+import LoginPage from './pages/LoginPage.jsx'
+import SurveyQuestionsPage from './pages/survey/SurveyQuestionsPage.jsx'
+import SurveyResultsPage from './pages/survey/SurveyResultsPage.jsx'
 import KeywordsPage from './pages/places/KeywordsPage.jsx'
 import PlacesPage from './pages/places/PlacesPage.jsx'
-import PlannedPage from './pages/PlannedPage.jsx'
+import RefundsPage from './pages/refunds/RefundsPage.jsx'
 import RouteErrorPage from './pages/RouteErrorPage.jsx'
 import PromotionFormPage from './pages/promotions/PromotionFormPage.jsx'
 import PromotionsPage from './pages/promotions/PromotionsPage.jsx'
 
-// Screens not built yet show their plan (menu.js), detail links included.
-const plannedRoutes = MENU_ITEMS.filter((item) => item.plan).map((item) => ({
-  path: `${item.path.slice(1)}/*`,
-  element: <PlannedPage item={item} />,
-}))
-
 export const router = createBrowserRouter([
+  { path: '/login', element: <LoginPage /> },
   {
     element: <AdminLayout />,
     errorElement: <RouteErrorPage />,
@@ -52,7 +56,19 @@ export const router = createBrowserRouter([
       { path: 'diary/templates/:templateId', element: <TemplateEditorPage /> },
       { path: 'diary/stickers', element: <StickersPage /> },
       { path: 'diary/fonts', element: <FontsPage /> },
-      ...plannedRoutes,
+      { path: 'inquiries', element: <InquiriesPage /> },
+      { path: 'inquiries/:inquiryId', element: <InquiriesPage /> },
+      { path: 'refunds', element: <RefundsPage /> },
+      { path: 'refunds/:requestId', element: <RefundsPage /> },
+      { path: 'payments', element: <PaymentsPage /> },
+      { path: 'payments/:paymentId', element: <PaymentsPage /> },
+      { path: 'mail', element: <ComposePage /> },
+      { path: 'mail/history', element: <MailHistoryPage /> },
+      { path: 'mail/auto', element: <AutoMailsPage /> },
+      { path: 'survey', element: <SurveyResultsPage /> },
+      { path: 'survey/questions', element: <SurveyQuestionsPage /> },
+      { path: 'members', element: <MembersPage /> },
+      { path: 'members/:memberId', element: <MemberDetailPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

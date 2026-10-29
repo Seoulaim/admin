@@ -23,6 +23,11 @@ export function todayKey() {
   return seoulDate.format(new Date())
 }
 
+// The Seoul date of an ISO time, as a key.
+export function seoulDateKey(iso) {
+  return seoulDate.format(new Date(iso))
+}
+
 // yy.mm.dd
 export function formatShortDate(key) {
   const [y, m, d] = key.slice(0, 10).split('-')
@@ -82,4 +87,21 @@ export function fullMonthGrid(year, month) {
 export function formatLongDate(key) {
   const date = fromDateKey(key)
   return `${date.getMonth() + 1}월 ${date.getDate()}일 (${WEEKDAYS[date.getDay()]})`
+}
+
+const seoulTime = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Seoul',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+// "26.10.29 14:20" in Seoul time.
+export function formatDateTime(iso) {
+  return `${formatShortDate(seoulDateKey(iso))} ${seoulTime.format(new Date(iso))}`
+}
+
+// Whether a date key falls in { from, to } (inclusive; '' = open end).
+export function isDateInRange(dateKey, { from, to }) {
+  return (!from || dateKey >= from) && (!to || dateKey <= to)
 }

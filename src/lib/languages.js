@@ -6,3 +6,7 @@ export const LANGUAGES = [
   { id: 'zh', label: 'ZH', name: '중국어' },
   { id: 'ja', label: 'JA', name: '일본어' },
 ]
+
+// "영어" for 'en'.
+export const languageName = (id) =>
+  LANGUAGES.find((l) => l.id === id)?.name ?? id

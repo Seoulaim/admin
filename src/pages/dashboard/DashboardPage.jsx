@@ -35,7 +35,7 @@ function Dashboard({ data }) {
 
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
-      <div className="grid grid-cols-2 gap-4 lg:gap-6 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:gap-6 xl:grid-cols-5">
         <StatCard
           label="오늘 신규 가입자"
           value={`${signups.today}명`}
@@ -57,6 +57,19 @@ function Dashboard({ data }) {
           value={`${data.pendingRefunds.length}건`}
           note={<Link to="/refunds">환불 관리로 →</Link>}
           highlight={data.pendingRefunds.length > 0}
+        />
+        <StatCard
+          label="플랜 만족도"
+          value={
+            data.survey.averageRating == null
+              ? '-'
+              : `${data.survey.averageRating.toFixed(1)} / 5`
+          }
+          note={
+            <Link to="/survey">
+              이번 주 응답 {data.survey.responsesThisWeek}건 →
+            </Link>
+          }
         />
       </div>
 

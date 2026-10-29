@@ -1,5 +1,7 @@
 import { dailyStats, inquiries, monthStats, payments } from '../mocks/db.js'
+import { headlineRating } from '../lib/survey.js'
 import { handle } from '../mocks/server.js'
+import { responses, survey } from '../mocks/survey.js'
 
 // Dashboard summary:
 // { signups: { today, yesterday },
@@ -9,20 +11,27 @@ import { handle } from '../mocks/server.js'
 //     answered yet, refund inquiries left out, newest first,
 //   pendingRefunds: [{ id, title, nickname, amount, createdAt }] — refund
 //     inquiries not handled yet, newest first. amount: the payment's (won).
+//   survey: { averageRating (first rating question, all time) | null,
+//     responsesThisWeek } — plan satisfaction survey.
 // }
 export function getDashboard() {
   return handle(() => {
-    const pending = inquiries
-      .filter((inquiry) => inquiry.status === 'received')
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    const newestFirst = (a, b) => b.createdAt.localeCompare(a.createdAt)
     const [yesterday, today] = dailyStats.slice(-2)
 
+    const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString()
     return {
+      survey: {
+        averageRating: headlineRating(survey.questions, responses),
+        responsesThisWeek: responses.filter((r) => r.submittedAt > weekAgo)
+          .length,
+      },
       signups: { today: today.signups, yesterday: yesterday.signups },
       payments: monthStats,
       daily: dailyStats,
-      pendingInquiries: pending
-        .filter((inquiry) => inquiry.category !== 'refund')
+      pendingInquiries: inquiries
+        .filter((i) => i.category !== 'refund' && i.status === 'received')
+        .sort(newestFirst)
         .map(({ id, category, title, author, createdAt }) => ({
           id,
           category,
@@ -30,8 +39,11 @@ export function getDashboard() {
           nickname: author.nickname,
           createdAt,
         })),
-      pendingRefunds: pending
-        .filter((inquiry) => inquiry.category === 'refund')
+      pendingRefunds: inquiries
+        .filter(
+          (i) => i.category === 'refund' && i.refund.status === 'requested',
+        )
+        .sort(newestFirst)
         .map(({ id, title, author, paymentId, createdAt }) => ({
           id,
           title,

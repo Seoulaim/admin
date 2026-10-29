@@ -1,16 +1,12 @@
+import { ApiError } from '../lib/apiClient.js'
+
 // Stand-in for the backend until the admin API exists: api/ functions call
 // respond() / handle() here, and only their insides change later.
 
 const DELAY_MS = 200
 
-// Same shape as the member app's ApiError: screens branch on error.code.
-export class ApiError extends Error {
-  constructor(code, message, details) {
-    super(message || code)
-    this.code = code
-    this.details = details ?? null
-  }
-}
+// The real client's error class, so mock and real failures look the same.
+export { ApiError }
 
 export function respond(data, delayMs = DELAY_MS) {
   return handle(() => data, delayMs)
