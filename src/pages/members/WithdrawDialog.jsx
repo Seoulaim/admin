@@ -43,7 +43,9 @@ function WithdrawDialog({ member, busy, onConfirm, onClose }) {
           계정과 다이어리, 등록 사진, 여행 플랜이 삭제되고 되돌릴 수 없어요.
         </li>
         <li>결제 기록은 전자상거래법에 따라 5년 동안 보관돼요.</li>
-        <li>{member.email}로 탈퇴 안내 메일이 가요 (사유 포함).</li>
+        <li>
+          {member.email}로 강퇴 안내 메일이 가요 (사유, 이의 제기 방법 포함).
+        </li>
         <li>이용약관에 정한 사유에 해당할 때만 강퇴할 수 있어요.</li>
       </ul>
 

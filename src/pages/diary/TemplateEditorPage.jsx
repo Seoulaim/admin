@@ -437,8 +437,8 @@ function TemplateForm({ initial }) {
       <div className="sticky bottom-0 z-30 -mx-4 flex items-center justify-end gap-2 border-t border-border bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         {used && (
           <p className="mr-auto text-xs text-muted">
-            다이어리 {initial.usedBy}개가 쓰는 템플릿이에요. 칸을 지우면 그 칸의
-            사진이 빠져요.
+            편집 중인 다이어리 {initial.usedBy}개가 쓰는 템플릿이에요. 칸을
+            지우면 그 칸의 사진이 빠져요.
           </p>
         )}
         {saveFailed && (
@@ -455,7 +455,7 @@ function TemplateForm({ initial }) {
       <ConfirmDialog
         open={Boolean(removing)}
         title="이 칸을 지울까요?"
-        message={`다이어리 ${initial.usedBy}개가 이 템플릿을 쓰고 있어요. 저장하면 그 다이어리에서 이 칸에 넣은 사진이 빠져요.`}
+        message={`편집 중인 다이어리 ${initial.usedBy}개가 이 템플릿을 쓰고 있어요. 저장하면 그 다이어리에서 이 칸에 넣은 사진이 빠져요.`}
         confirmLabel="지우기"
         danger
         onConfirm={() => {

@@ -76,7 +76,7 @@ function SpreadView({ spread, template, stickers, fonts }) {
         </>
       ) : (
         <p className="absolute inset-0 flex items-center justify-center text-sm text-sub">
-          템플릿이 삭제돼 배경 없이 보여요.
+          템플릿을 쓰지 않은 페이지예요.
         </p>
       )}
 

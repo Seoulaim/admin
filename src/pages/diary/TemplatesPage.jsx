@@ -69,8 +69,12 @@ function TemplatesPage() {
       await deleteTemplate(deleting.id)
       update((list) => list.filter((t) => t.id !== deleting.id))
       showToast('삭제했어요.')
-    } catch {
-      showToast('삭제하지 못했어요. 다시 시도해 주세요.')
+    } catch (e) {
+      showToast(
+        e.code === 'TEMPLATE_IN_USE'
+          ? '편집 중인 다이어리가 쓰고 있어 삭제할 수 없어요. 숨기기만 할 수 있어요.'
+          : '삭제하지 못했어요. 다시 시도해 주세요.',
+      )
     } finally {
       setDeleteBusy(false)
       setDeleting(null)
@@ -90,8 +94,10 @@ function TemplatesPage() {
       <main className="flex flex-col gap-4 p-4 sm:p-6 lg:p-8">
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-muted">
-            편집기의 템플릿 목록(DD05-3)에 이 순서대로 보여요. 끄면 새
-            페이지에서 고를 수 없지만, 이미 쓴 다이어리는 그대로예요.
+            편집기의 템플릿 목록(DD05-3)에 이 순서대로 보여요. 끄면 목록에서만
+            빠져요. 완성한 다이어리는 영향이 없고, 편집 중인 페이지에
+            사진·스티커·글·펜을 넣었으면 그대로 남아요. 템플릿만 적용한 페이지는
+            템플릿이 자동으로 빠져요.
           </p>
           <div className="ml-auto flex gap-2">
             {ordering ? (
@@ -154,15 +160,21 @@ function TemplatesPage() {
                           </span>
                           {template.name.ko || template.name.en}
                         </p>
-                        <p className="truncate text-xs text-sub">
+                        <p className="text-xs text-sub">
                           사진 칸 {template.frames.length}개
                           {template.usedBy > 0 &&
-                            ` · 다이어리 ${template.usedBy}개에서 사용 중`}
+                            ` · 편집 중인 다이어리 ${template.usedBy}개에서 사용 중`}
                           {template.overlayUrl && ' · 장식 있음'}
                         </p>
                         {ratio && (
                           <p className="truncate text-xs font-medium text-warn">
                             비율이 A4 가로가 아니에요
+                          </p>
+                        )}
+                        {template.usedBy > 0 && (
+                          <p className="text-xs text-muted">
+                            쓰는 다이어리가 있어 삭제할 수 없어요. 숨기기만
+                            돼요.
                           </p>
                         )}
                       </div>
@@ -189,6 +201,12 @@ function TemplatesPage() {
                             size="sm"
                             variant="danger"
                             onClick={() => setDeleting(template)}
+                            disabled={template.usedBy > 0}
+                            title={
+                              template.usedBy > 0
+                                ? '편집 중인 다이어리가 쓰는 템플릿은 숨기기만 할 수 있어요.'
+                                : undefined
+                            }
                           >
                             삭제
                           </Button>
@@ -206,12 +224,7 @@ function TemplatesPage() {
       <ConfirmDialog
         open={Boolean(deleting)}
         title="템플릿을 삭제할까요?"
-        message={
-          deleting &&
-          (deleting.usedBy > 0
-            ? `다이어리 ${deleting.usedBy}개가 이 템플릿을 쓰고 있어요. 삭제하면 그 페이지들의 배경이 사라져요.\n새 페이지에서만 빼려면 삭제 대신 노출을 끄세요.`
-            : '삭제하면 되돌릴 수 없어요.')
-        }
+        message="삭제하면 되돌릴 수 없어요."
         confirmLabel="삭제"
         danger
         busy={deleteBusy}

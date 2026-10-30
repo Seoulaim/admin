@@ -12,8 +12,8 @@ const frame = (id, x, y, width, height, rotation = 0) => ({
   rotation,
 })
 
-// usedBy: how many member diaries use it (from the backend) — their photos
-// are tied to its frame ids.
+// usedBy: how many diaries being edited use it (from the backend) — their
+// photos are tied to its frame ids. Finished diaries are images.
 export const templates = [
   {
     id: 'tpl-a',

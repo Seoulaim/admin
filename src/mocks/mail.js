@@ -152,21 +152,6 @@ export const autoMails = [
     41,
   ),
   auto(
-    'diary-reopened',
-    '다이어리 편집 다시 열림',
-    '결제 관리에서 편집을 다시 열었을 때',
-    ['nickname', 'diaryName'],
-    [
-      'You can edit your diary again',
-      'Hi {nickname}, "{diaryName}" is open for editing again.',
-    ],
-    [
-      '다이어리를 다시 꾸밀 수 있어요',
-      '{nickname}님, "{diaryName}"을 다시 편집할 수 있어요.',
-    ],
-    1,
-  ),
-  auto(
     'diary-expiring',
     '다이어리 삭제 예정',
     '보관 기간 만료 7일 전 (편집 중 90일, 완성 1년)',
@@ -184,14 +169,29 @@ export const autoMails = [
   auto(
     'withdrawn',
     '탈퇴 완료',
-    '회원 탈퇴(MA02) 또는 탈퇴 처리',
+    '회원 탈퇴(MA02)',
     ['nickname'],
     [
       'Your account is deleted',
       'Goodbye {nickname}. Your account and data are deleted.',
     ],
     ['탈퇴 완료', '{nickname}님의 계정과 데이터가 삭제됐어요.'],
-    3,
+    2,
+  ),
+  auto(
+    'member-removed',
+    '강퇴 안내',
+    '회원 관리에서 강퇴했을 때',
+    ['nickname', 'reason'],
+    [
+      'Your Seoulaim account was closed',
+      'Hi {nickname}, we closed your account for this reason: {reason}\n\nYour account and data are deleted. If you disagree, contact us through General Inquiries at the bottom of the site (no login needed) or at seoulaimkr@gmail.com.',
+    ],
+    [
+      '설레임 계정 해지 안내',
+      '{nickname}님, 다음 사유로 회원 자격이 해지됐어요: {reason}\n\n계정과 데이터는 삭제됐어요. 이의가 있으면 사이트 하단 일반 문의(로그인 불필요) 또는 seoulaimkr@gmail.com으로 알려 주세요.',
+    ],
+    1,
   ),
   auto(
     'marketing-recheck',

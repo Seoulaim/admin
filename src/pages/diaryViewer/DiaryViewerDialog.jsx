@@ -9,7 +9,6 @@ import SpreadView from './SpreadView.jsx'
 
 const PURPOSES = {
   'refund-review': '환불 검토',
-  'reopen-review': '편집 다시 열기 검토',
 }
 
 // Loads each font's CSS once (texts use the editor's fonts).
@@ -32,7 +31,8 @@ function useFontStylesheets(fonts) {
   }, [fonts])
 }
 
-// A member's diary, page by page, opened for `purpose` (logged).
+// A member's diary, page by page, opened for `purpose` (logged): a finished
+// one as its page images, one being edited drawn from its spreads.
 function DiaryViewerDialog({ diaryId, purpose, onClose }) {
   const fetcher = useCallback(
     () => openMemberDiary(diaryId, purpose),
@@ -41,19 +41,19 @@ function DiaryViewerDialog({ diaryId, purpose, onClose }) {
   const { data, error, reload } = useFetch(fetcher)
   const [page, setPage] = useState(0)
   useFontStylesheets(data?.fonts)
+  const pageCount = (data?.pages ?? data?.spreads)?.length ?? 0
 
   useEffect(() => {
     const onKey = (event) => {
-      if (!data) return
       if (event.key === 'ArrowRight')
-        setPage((p) => Math.min(p + 1, data.spreads.length - 1))
+        setPage((p) => Math.min(p + 1, pageCount - 1))
       if (event.key === 'ArrowLeft') setPage((p) => Math.max(p - 1, 0))
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [data])
+  }, [pageCount])
 
-  const spread = data?.spreads[page]
+  const spread = data?.spreads?.[page]
 
   return (
     <Dialog
@@ -75,11 +75,11 @@ function DiaryViewerDialog({ diaryId, purpose, onClose }) {
               ← 이전
             </Button>
             <span className="w-16 text-center text-sm font-semibold tabular-nums">
-              {page + 1} / {data.spreads.length}
+              {page + 1} / {pageCount}
             </span>
             <Button
               onClick={() => setPage((p) => p + 1)}
-              disabled={page === data.spreads.length - 1}
+              disabled={page === pageCount - 1}
             >
               다음 →
             </Button>
@@ -94,20 +94,28 @@ function DiaryViewerDialog({ diaryId, purpose, onClose }) {
       ) : (
         <div className="flex flex-col gap-4">
           <div className="rounded-xl bg-panel p-3 sm:p-5">
-            <SpreadView
-              key={page}
-              spread={spread}
-              template={data.templates.find((t) => t.id === spread.templateId)}
-              stickers={data.stickers}
-              fonts={data.fonts}
-            />
+            {data.pages ? (
+              <img
+                src={data.pages[page]}
+                alt={`${page + 1}쪽`}
+                className="w-full bg-white shadow-card"
+              />
+            ) : (
+              <SpreadView
+                key={page}
+                spread={spread}
+                template={data.templates.find(
+                  (t) => t.id === spread.templateId,
+                )}
+                stickers={data.stickers}
+                fonts={data.fonts}
+              />
+            )}
           </div>
           <p className="text-xs text-sub">
-            앱 편집기와 같은 데이터로 그린 화면이에요. 글자 위치 등은 앱과 조금
-            다를 수 있어요. 다이어리 상태:{' '}
-            {data.diary.finishedAt
-              ? `완성 ${formatDateTime(data.diary.finishedAt)}`
-              : '편집 중'}
+            {data.pages
+              ? `완성할 때 만들어진 페이지 이미지예요. 완성 ${formatDateTime(data.diary.completedAt)}`
+              : '앱 편집기와 같은 데이터로 그린 화면이에요. 글자 위치 등은 앱과 조금 다를 수 있어요. 다이어리 상태: 편집 중'}
           </p>
           <details className="text-xs text-muted">
             <summary className="cursor-pointer font-semibold">

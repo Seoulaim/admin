@@ -152,20 +152,20 @@ function MemberDetailPage() {
                         </span>
                         <Chip
                           tone={
-                            d.finishedAt
+                            d.completedAt
                               ? 'bg-ok-soft text-ok'
                               : 'bg-chip text-muted'
                           }
                         >
-                          {d.finishedAt ? '완성' : '편집 중'}
+                          {d.completedAt ? '완성' : '편집 중'}
                         </Chip>
                       </li>
                     ))}
                   </ul>
                 )}
                 <p className="text-xs text-sub">
-                  다이어리 내용은 환불·편집 다시 열기 검토 때만 결제 관리·환불
-                  관리에서 볼 수 있어요.
+                  다이어리 내용과 등록 사진은 환불 정책 밖 환불 요청을 검토할
+                  때만 환불 관리에서 볼 수 있어요.
                 </p>
               </Section>
 
@@ -353,7 +353,7 @@ function MemberDetailPage() {
                 <ul className="flex flex-col gap-1 text-xs text-muted">
                   {member.views.map((v) => (
                     <li key={v.at} className="tabular-nums">
-                      {formatDateTime(v.at)} · {v.adminName} · 회원 상세 열람
+                      {formatDateTime(v.at)} · {v.adminName} · {v.purpose}
                     </li>
                   ))}
                 </ul>

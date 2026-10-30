@@ -1,5 +1,5 @@
-// Why an account was withdrawn by the admin (강퇴). The terms of service
-// must list these as grounds (member app terms).
+// Why an account was withdrawn by the admin (강퇴). Grounds: 이용약관 제5조
+// 3항 ('request' is the member's own wish, not one of those grounds).
 export const WITHDRAWAL_REASONS = [
   {
     id: 'abuse',

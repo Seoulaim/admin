@@ -64,7 +64,7 @@ export function ApproveDialog({
           <legend className="mb-2 text-sm font-bold">
             예외 사유 <span className="text-point-strong">*</span>
             <span className="ml-1 text-xs font-normal text-sub">
-              환불 정책(제3조) 밖이라 사유가 기록돼요.
+              환불 정책 밖이라 사유가 기록돼요.
             </span>
           </legend>
           {EXCEPTION_REASONS.map((r) => (
@@ -120,7 +120,11 @@ export function ApproveDialog({
 const REJECT_TEMPLATES = [
   {
     label: '7일 지남',
-    text: '결제일로부터 7일이 지나 환불 정책 제3조에 따라 환불되지 않아요.',
+    text: '결제일로부터 7일이 지나 환불 정책 제3조 5항에 따라 환불되지 않아요.',
+  },
+  {
+    label: '결제 후 편집함',
+    text: '결제 후 편집을 시작한 다이어리라 환불 정책 제3조 2항에 따라 검토한 결과, 환불되지 않아요.',
   },
   {
     label: '완성함',

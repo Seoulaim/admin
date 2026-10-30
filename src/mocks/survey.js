@@ -88,7 +88,8 @@ const planMembers = members.filter((m) => m.plan)
 
 // Made-up answers over the last 30 days from members who have a plan.
 // plan: what the plan was when they answered (to compare by bias /
-// keyword). email: where the gift card goes (the account email).
+// keyword). Its biasGroupIds come from the biases saved in the plan, which
+// can differ from the member's current ones. email: where the gift card goes (the account email).
 // gift: { status: 'pending' | 'sent', sentAt, adminName } — the reward.
 export const responses = planMembers.slice(0, 24).map((m, i) => ({
   id: `sr-${i}`,

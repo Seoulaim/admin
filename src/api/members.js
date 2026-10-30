@@ -6,8 +6,8 @@ import { responses, survey } from '../mocks/survey.js'
 import { maskEmail, maskName } from '../lib/privacy.js'
 
 // 회원 관리. The list hides personal details partly (maskEmail / maskName);
-// the detail has them in full, and every opening is logged (who, when) —
-// the backend keeps that log (개인정보 접속기록).
+// the detail has them in full, and every opening is logged (who, when, why;
+// 개인정보처리방침 제11조 4호) — the backend keeps that log.
 //
 // List row: { id, nickname, maskedName, maskedEmail, language, joinedAt,
 //   lastSeenAt, biasGroupIds, marketing, paidCount }
@@ -15,6 +15,9 @@ import { maskEmail, maskName } from '../lib/privacy.js'
 //   biases: [{ id, name, group }], diaries, payments, inquiries, views,
 //   survey: { questions, response } | null — their satisfaction survey
 //   answer (questions to read it with).
+// plan is the member's one plan: its biases are fixed when it's made and
+// can differ from `biases` (their current ones). The same goes for
+// survey.response.plan.biasGroupIds.
 // Withdrawing (강퇴) deletes the account and its diaries, photos and plan;
 // payment records stay (전자상거래법: 5 years). A record of the withdrawal
 // is kept without personal details.
@@ -73,6 +76,7 @@ export function getMember(id) {
         memberId: id,
         at: new Date().toISOString(),
         adminName: admin.name,
+        purpose: '회원 상세 열람',
       })
     }
     const own = payments.filter((p) => p.member.id === id)
@@ -121,7 +125,8 @@ export function getWithdrawalChecks(id) {
 }
 
 // 강퇴. reason: one of WITHDRAWAL_REASONS' ids; memo: what happened
-// (required). The member gets the "탈퇴 완료" mail with the reason.
+// (required). The member gets the "강퇴 안내" mail with the reason and how
+// to object (이용약관 제5조 4·5항).
 export function withdrawMember(id, reason, memo) {
   return handle(() => {
     const member = find(id)

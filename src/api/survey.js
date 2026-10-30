@@ -16,8 +16,13 @@ import { ApiError, handle } from '../mocks/server.js'
 // When the member app shows the invite (the backend keeps the counts):
 // - to members with a plan, from their 2nd TRAVEL visit after making it;
 // - not after they answered (one plan per member, so one answer);
-// - 닫기 (X): shown again on the next TRAVEL visit;
+// - 닫기 (X), or 예 and leaving without submitting: shown again on the next
+//   TRAVEL visit;
 // - 오늘 하루 보지 않기: not again until midnight (Seoul).
+// A TRAVEL visit is coming in from another screen (HOME, DIARY, menu…).
+// Coming back from a place (HT07), the map (HT09) or the survey isn't one:
+// the app doesn't report it, so after closing, the popup waits until the
+// member leaves for another screen and enters TRAVEL again.
 // The app gets the questions that aren't archived, in order, localized.
 
 // { questions, updatedAt, answerCounts: { [questionId]: n } }

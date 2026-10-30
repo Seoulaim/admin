@@ -7,12 +7,15 @@ import { ApiError, handle } from '../mocks/server.js'
 // from a request.
 //
 // Refund request: { id (the inquiry's), author, language, title, content,
-//   photoUrls, createdAt (when asked), refund, payment, policy, deadline }
+//   photoUrls, createdAt (when asked), refund, payment, policy,
+//   refundWithinPolicy, deadline }
 // - refund: { status: 'requested' | 'refunded' | 'rejected', decidedAt,
 //   adminName, exception: { reason, memo } | null, rejectReason }
 // - payment: { id, orderId, amount, provider, paidAt, refundConsentAt,
-//   diary: { id, name, first, pages, finishedAt } }
-// - policy: checkRefundPolicy — 제3조 judged at the time of the request.
+//   editedAt, diary: { id, name, first, pages, completedAt } }
+// - policy: checkRefundPolicy — why, judged at the time of the request.
+// - refundWithinPolicy: the server's own verdict, which decides. A member
+//   can ask within 7 days even after editing; it arrives marked false.
 // - deadline: last day to handle it (제6조, 3 business days).
 //
 // Approving is the backend's job end to end: cancel the Toss payment
@@ -35,6 +38,7 @@ function view(inquiry) {
     refund: inquiry.refund,
     payment,
     policy: checkRefundPolicy(payment, inquiry.createdAt),
+    refundWithinPolicy: inquiry.refundWithinPolicy,
     deadline: processingDeadline(inquiry.createdAt),
   }
 }
@@ -84,7 +88,7 @@ function decide(id, fields) {
 export function approveRefund(id, exception = null) {
   return handle(() => {
     const inquiry = find(id)
-    if (!view(inquiry).policy.ok && !exception) {
+    if (!inquiry.refundWithinPolicy && !exception) {
       throw new ApiError('POLICY_EXCEPTION_REQUIRED')
     }
     return decide(id, { status: 'refunded', exception })

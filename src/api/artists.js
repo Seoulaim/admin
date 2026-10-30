@@ -11,7 +11,8 @@ import { ApiError, handle } from '../mocks/server.js'
 // updatedAt: 'YYYY-MM-DD' of the last save.
 //
 // The member app (HH02 / HC04 bias pickers) gets groups and their members
-// in this order. Its search matches member names in every language.
+// in this order. Its search matches both group and member names in every
+// language (산, san, 에이티즈, ateez).
 // Member ids are what biases, events (groupIds) and birthday cafes
 // (memberId) point to, so they never change once made.
 //

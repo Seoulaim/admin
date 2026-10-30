@@ -19,9 +19,15 @@ import { ApiError, handle } from '../mocks/server.js'
 //   image, x / y the top-left of the unrotated box, rotation in degrees
 //   around its center. Photos fill frames in this order. Member diaries
 //   tie their photos to frame ids, so ids never change once used
-//   (usedBy: how many diaries use the template).
+//   (usedBy: how many diaries being edited use the template; finished ones
+//   are images and don't count).
 //   No writing spots: post-its are drawn in the background and members add
-//   their own text. visible false: not offered for new pages.
+//   their own text.
+//   visible false: left out of the app's template picker, nothing else.
+//   Finished diaries are images, so nothing changes for them. A page being
+//   edited that has anything on it (photo, sticker, text, pen) stays as it
+//   is — the server sends the template along. A page with only the template
+//   on it loses the template.
 // Sticker: { id, name, imageUrl, categoryIds } — transparent PNG / WebP or
 //   a plain vector SVG. Category: { id, name } ("All" is added by the app).
 // Font: { id, name, family, stylesheetUrl, previewScale } — stylesheetUrl
@@ -71,8 +77,14 @@ export const createTemplate = (fields) =>
 export const updateTemplate = templateList.update
 export const setTemplateVisible = (id, visible) =>
   templateList.update(id, { visible })
-// Diaries that used it keep their pages, drawn without a background.
-export const deleteTemplate = (id) => templateList.remove(id)
+// Only when no diary being edited uses it ('TEMPLATE_IN_USE'): those can
+// only hide it.
+export const deleteTemplate = (id) =>
+  handle(() => {
+    if (templates.find((t) => t.id === id)?.usedBy > 0) {
+      throw new ApiError('TEMPLATE_IN_USE')
+    }
+  }).then(() => templateList.remove(id))
 export const reorderTemplates = templateList.reorder
 
 export const getStickers = () =>

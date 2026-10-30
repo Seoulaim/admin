@@ -9,7 +9,10 @@ import { groups } from './artists.js'
 //   marketing (optional), each { agreed, at }.
 // - notifications: MA09 — service (account mail) and marketing on / off,
 //   marketingUpdatedAt: when marketing last changed (consent date).
-// - plan: { arrivalDate, departureDate, places } | null (one per member).
+// - plan: { arrivalDate, departureDate, places, biasIds } | null. One per
+//   member; the web can't edit, delete or remake it (이용약관 제6조 4항).
+//   Its biasIds are fixed when it's made, so they can differ from the
+//   member's current biasIds.
 // - freeDiary: the first diary when it was never paid for (paid ones come
 //   from the payments).
 // - history: account events, oldest first.
@@ -25,6 +28,10 @@ function makeMember(id, nickname, name, i, extra = {}) {
   const marketingAt = hoursAgo(joinedHours - (marketing ? 0 : 24))
   const biasCount = 1 + (i % 5)
   const start = (i * 3) % allMembers.length
+  const biasIds = Array.from(
+    { length: biasCount },
+    (_, k) => allMembers[(start + k) % allMembers.length],
+  )
   return {
     id,
     nickname,
@@ -33,10 +40,7 @@ function makeMember(id, nickname, name, i, extra = {}) {
     language: LANGUAGES[i % LANGUAGES.length],
     joinedAt: hoursAgo(joinedHours),
     lastSeenAt: hoursAgo((i * 5) % 72),
-    biasIds: Array.from(
-      { length: biasCount },
-      (_, k) => allMembers[(start + k) % allMembers.length],
-    ),
+    biasIds,
     consents: {
       terms: { agreed: true, at: hoursAgo(joinedHours) },
       privacy: { agreed: true, at: hoursAgo(joinedHours) },
@@ -55,6 +59,7 @@ function makeMember(id, nickname, name, i, extra = {}) {
             arrivalDate: '2026-11-0' + (1 + (i % 8)),
             departureDate: '2026-11-1' + (i % 8),
             places: 6 + (i % 7),
+            biasIds,
           },
     freeDiary:
       i % 4 === 1
@@ -63,7 +68,7 @@ function makeMember(id, nickname, name, i, extra = {}) {
             name: 'My Seoul diary',
             first: true,
             pages: 2,
-            finishedAt: null,
+            completedAt: null,
           }
         : null,
     history: [
@@ -154,5 +159,6 @@ export const withdrawals = [
   },
 ]
 
-// Who opened a member's details, when (privacy log).
+// Who opened a member's details, when and why (privacy log, 개인정보처리방침
+// 제11조 4호).
 export const memberViews = []

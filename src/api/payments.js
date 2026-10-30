@@ -4,7 +4,10 @@ import { handle } from '../mocks/server.js'
 // 결제 관리: every diary payment, newest first.
 // Payment: { id, orderId, member: { id, nickname, email }, amount,
 //   provider ('toss'), paidAt, refundConsentAt,
-//   diary: { id, name, first, pages, finishedAt, reopened },
+//   editedAt: first edit after paying (POST /diaries/{id}/edited), or null.
+//     On a first diary only pages 3+ count: pages 1–2 are free to change,
+//     before or after paying,
+//   diary: { id, name, first, pages, completedAt },
 //   status: 'paid' | 'refund-requested' | 'refunded',
 //   refundRequestId: the refund inquiry, if any,
 //   sameDiaryPayments: other unrefunded payments of the same diary

@@ -1,6 +1,6 @@
 // "mina@example.com" → "mi**@example.com": lists show personal details
 // partly hidden; the full value is on the detail screen (whose opening is
-// logged).
+// logged: who, when, why — 개인정보처리방침 제11조 4호).
 export function maskEmail(email) {
   const [user, domain] = email.split('@')
   const shown = user.slice(0, Math.min(2, Math.max(1, user.length - 1)))

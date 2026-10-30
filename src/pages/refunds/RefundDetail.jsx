@@ -9,6 +9,7 @@ import {
   daysBetween,
   formatDateTime,
   formatShortDate,
+  seoulDateKey,
   todayKey,
 } from '../../lib/dates.js'
 import { languageName } from '../../lib/languages.js'
@@ -55,7 +56,7 @@ function RefundDetail({ request, onChange, onToast }) {
   const [dialog, setDialog] = useState(null) // 'approve' | 'reject' | 'diary'
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
-  const { refund, payment, policy } = request
+  const { refund, payment, policy, refundWithinPolicy } = request
   const waiting = refund.status === 'requested'
   const daysLeft = daysBetween(todayKey(), request.deadline)
 
@@ -98,9 +99,13 @@ function RefundDetail({ request, onChange, onToast }) {
             {REFUND_STATUS[refund.status].label}
           </Chip>
           <Chip
-            tone={policy.ok ? 'bg-ok-soft text-ok' : 'bg-danger/10 text-danger'}
+            tone={
+              refundWithinPolicy
+                ? 'bg-ok-soft text-ok'
+                : 'bg-danger/10 text-danger'
+            }
           >
-            {policy.ok ? '정책상 환불 가능' : '정책 밖'}
+            {refundWithinPolicy ? '정책상 환불 가능' : '정책 밖'}
           </Chip>
           {waiting && (
             <span
@@ -152,6 +157,10 @@ function RefundDetail({ request, onChange, onToast }) {
                 payment.provider === 'toss' ? '토스페이먼츠' : payment.provider,
               ],
               ['환불 제한 동의', formatDateTime(payment.refundConsentAt)],
+              [
+                '결제 후 편집',
+                payment.editedAt ? formatDateTime(payment.editedAt) : '없음',
+              ],
             ]}
           />
         </Card>
@@ -169,8 +178,8 @@ function RefundDetail({ request, onChange, onToast }) {
               ['페이지', `${payment.diary.pages}쪽`],
               [
                 '완성(Done)',
-                payment.diary.finishedAt
-                  ? formatDateTime(payment.diary.finishedAt)
+                payment.diary.completedAt
+                  ? formatDateTime(payment.diary.completedAt)
                   : '아직',
               ],
             ]}
@@ -180,9 +189,9 @@ function RefundDetail({ request, onChange, onToast }) {
               환불하면: {diaryOutcome(payment.diary)}
             </p>
           )}
-          {/* Outside the policy the admin checks the diary before deciding
-              (logged; the privacy policy mentions it). */}
-          {!policy.ok && payment.diary.pages > 0 && (
+          {/* Outside the policy the admin checks the diary before deciding:
+              the only time it's opened (logged; 개인정보처리방침 제11조 4호). */}
+          {!refundWithinPolicy && payment.diary.pages > 0 && (
             <Button
               size="sm"
               className="self-start"
@@ -198,13 +207,18 @@ function RefundDetail({ request, onChange, onToast }) {
         <h3 className="text-sm font-bold">
           환불 정책 확인{' '}
           <span className="text-xs font-normal text-sub">
-            요청한 시각 기준 (제3조)
+            요청한 시각 기준 (제3조 1항, 제4조)
           </span>
         </h3>
         <ul className="flex flex-col gap-2">
           <Check ok={policy.inTime}>
             결제 후 {REFUND_DAYS}일 이내 요청 — 결제 {policy.daysSincePayment}
             일째에 요청했어요
+          </Check>
+          <Check ok={policy.notEdited}>
+            {policy.notEdited
+              ? '요청할 때 결제 후 편집 이력 없음'
+              : `결제 후 편집함 (${formatShortDate(seoulDateKey(payment.editedAt))})`}
           </Check>
           <Check ok={policy.notFinished}>
             요청할 때 다이어리를 완성(Done)하지 않음
@@ -213,20 +227,21 @@ function RefundDetail({ request, onChange, onToast }) {
 
         {waiting ? (
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-            {!policy.ok && (
+            {!refundWithinPolicy && (
               <p className="mr-auto text-xs text-muted">
-                정책 밖이에요. 중복 결제나 회사 오류처럼 제5조에 해당하면 예외로
-                환불할 수 있어요.
+                정책 밖이에요. 제5조에 해당하거나, 결제 후 편집한 요청을 회사
+                판단으로 환불한다면(제3조 2항, 기타) 예외 사유를 골라 환불할 수
+                있어요.
               </p>
             )}
             <Button variant="danger" onClick={() => setDialog('reject')}>
               거절하기
             </Button>
             <Button
-              variant={policy.ok ? 'primary' : 'outline'}
+              variant={refundWithinPolicy ? 'primary' : 'outline'}
               onClick={() => setDialog('approve')}
             >
-              {policy.ok
+              {refundWithinPolicy
                 ? `${formatKrw(payment.amount)} 환불하기`
                 : '예외로 환불하기'}
             </Button>
@@ -257,7 +272,7 @@ function RefundDetail({ request, onChange, onToast }) {
       {dialog === 'approve' && (
         <ApproveDialog
           request={request}
-          outsidePolicy={!policy.ok}
+          outsidePolicy={!refundWithinPolicy}
           busy={busy}
           error={error}
           onConfirm={approve}

@@ -22,10 +22,12 @@ import { ApiError, handle } from '../mocks/server.js'
 // - Bias groups = the groups of the member's biases. Logged out or no
 //   biases yet: everything.
 // - Event coming up (with an image, not ended) and Birthday cafe (not
-//   ended): those with a bias group or 'all' (a cafe: its member's group);
-//   when none match, everything instead.
-// - Fan calendar: inCalendar entries with a bias group or 'all' only, even
-//   when that leaves it empty.
+//   ended): those with a bias group or 'all' (a cafe: its member's group).
+//   When no item is for a bias group itself, everything instead: matching
+//   only 'all' items counts as none (an ILLIT fan with no ILLIT event gets
+//   every card).
+// - Fan calendar: no fallback, only inCalendar entries with a bias group or
+//   'all', even when that leaves it empty.
 
 function collection(items, prefix) {
   const find = (id) => {

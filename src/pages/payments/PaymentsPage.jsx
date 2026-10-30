@@ -8,10 +8,13 @@ import DateRangeFilter from '../../components/form/DateRangeFilter.jsx'
 import { inputClass } from '../../components/form/inputClass.js'
 import LoadError from '../../components/LoadError.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
-import Toast from '../../components/Toast.jsx'
 import { useFetch } from '../../hooks/useFetch.js'
-import { useToast } from '../../hooks/useToast.js'
-import { formatDateTime, isDateInRange, seoulDateKey } from '../../lib/dates.js'
+import {
+  formatDateTime,
+  formatShortDate,
+  isDateInRange,
+  seoulDateKey,
+} from '../../lib/dates.js'
 import { formatKrw } from '../../lib/money.js'
 import PaymentDetail from './PaymentDetail.jsx'
 import { PAYMENT_STATUS } from './paymentStatus.js'
@@ -67,8 +70,7 @@ function downloadCsv(rows) {
 // (/payments/:paymentId) on the right.
 function PaymentsPage() {
   const { paymentId } = useParams()
-  const { data: payments, error, reload, update } = useFetch(getPayments)
-  const { toast, showToast } = useToast()
+  const { data: payments, error, reload } = useFetch(getPayments)
   const [range, setRange] = useState({ from: '', to: '' })
   const [status, setStatus] = useState('all')
   const [diaryState, setDiaryState] = useState('all')
@@ -80,7 +82,7 @@ function PaymentsPage() {
       isDateInRange(seoulDateKey(p.paidAt), range) &&
       (status === 'all' || p.status === status) &&
       (diaryState === 'all' ||
-        (diaryState === 'finished') === Boolean(p.diary.finishedAt)) &&
+        (diaryState === 'finished') === Boolean(p.diary.completedAt)) &&
       (!q ||
         [p.member.nickname, p.member.email, p.orderId, p.diary.name ?? ''].some(
           (text) => text.toLowerCase().includes(q),
@@ -187,8 +189,14 @@ function PaymentsPage() {
                           <p className="truncate text-xs text-sub tabular-nums">
                             {formatDateTime(p.paidAt)} ·{' '}
                             {p.diary.name ?? '(삭제됨)'}
-                            {p.diary.finishedAt && ' · 완성'}
+                            {p.diary.completedAt && ' · 완성'}
                           </p>
+                          {p.editedAt && (
+                            <p className="truncate text-xs text-sub tabular-nums">
+                              결제 후 편집{' '}
+                              {formatShortDate(seoulDateKey(p.editedAt))}
+                            </p>
+                          )}
                         </div>
                         {p.sameDiaryPayments > 0 && (
                           <Chip tone="bg-danger/10 text-danger">중복?</Chip>
@@ -204,20 +212,7 @@ function PaymentsPage() {
             </Card>
 
             {selected ? (
-              <PaymentDetail
-                key={selected.id}
-                payment={selected}
-                onToast={showToast}
-                onChange={(next) =>
-                  update((list) =>
-                    list.map((p) =>
-                      p.diary.id === next.diary.id
-                        ? { ...p, diary: next.diary }
-                        : p,
-                    ),
-                  )
-                }
-              />
+              <PaymentDetail key={selected.id} payment={selected} />
             ) : (
               <Card className="px-6 py-24 text-center text-sm text-sub">
                 {paymentId ? '없는 결제예요.' : '왼쪽에서 결제를 고르세요.'}
@@ -226,7 +221,6 @@ function PaymentsPage() {
           </div>
         )}
       </main>
-      <Toast toast={toast} />
     </>
   )
 }

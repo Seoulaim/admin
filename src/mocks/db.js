@@ -34,6 +34,9 @@ export const monthStats = {
 // A refund inquiry names the payment (paymentId) and carries refund:
 //   { status: 'requested' | 'refunded' | 'rejected', decidedAt, adminName,
 //     exception: { reason, memo } | null, rejectReason }
+// and refundWithinPolicy: the server's call on 환불 정책 제3조 1항 / 제4조.
+// A member can still ask within 7 days after editing; it arrives marked
+// false.
 const at = (hours) => hoursAgo(hours)
 const asked = (id, nickname, email) => ({ id, nickname, email })
 const requested = {
@@ -58,6 +61,7 @@ export const inquiries = [
     status: 'answered',
     answers: [],
     memo: '',
+    refundWithinPolicy: true,
     refund: {
       status: 'refunded',
       decidedAt: at(24 * 6),
@@ -79,6 +83,7 @@ export const inquiries = [
     status: 'answered',
     answers: [],
     memo: '',
+    refundWithinPolicy: false,
     refund: {
       status: 'rejected',
       decidedAt: at(24 * 4),
@@ -157,6 +162,7 @@ export const inquiries = [
     status: 'received',
     answers: [],
     memo: '',
+    refundWithinPolicy: false,
     refund: { ...requested },
   },
   {
@@ -172,6 +178,7 @@ export const inquiries = [
     status: 'received',
     answers: [],
     memo: '',
+    refundWithinPolicy: false,
     refund: { ...requested },
   },
   {
@@ -201,6 +208,7 @@ export const inquiries = [
     status: 'received',
     answers: [],
     memo: '',
+    refundWithinPolicy: false,
     refund: { ...requested },
   },
   {
@@ -230,6 +238,7 @@ export const inquiries = [
     status: 'received',
     answers: [],
     memo: '',
+    refundWithinPolicy: true,
     refund: { ...requested },
   },
 ]
@@ -237,9 +246,9 @@ export const inquiries = [
 // Diary payments (member app payments.getMyPayments, plus who paid).
 // provider: 'toss' now; app store payments may come with the app version.
 // diary.first: the account's free diary (refunding it locks pages 3+;
-// any other diary is deleted). diary.finishedAt: when Done was pressed.
-// diary.reopened: [{ at, adminName, reason }] — times the admin reopened a
-// finished diary for editing.
+// any other diary is deleted). diary.completedAt: when Done was pressed.
+// editedAt: the first edit after paying, or null. On a first diary only
+// pages 3+ count: pages 1–2 are free to change, before or after paying.
 const member = (id, nickname) => ({
   id,
   nickname,
@@ -249,16 +258,15 @@ const diary = (
   id,
   name,
   pages,
-  { first = false, finishedHours = null } = {},
+  { first = false, completedHours = null } = {},
 ) => ({
   id,
   name,
   first,
   pages,
-  finishedAt: finishedHours == null ? null : hoursAgo(finishedHours),
-  reopened: [],
+  completedAt: completedHours == null ? null : hoursAgo(completedHours),
 })
-const payment = (id, buyer, paidDiary, amount, hours) => ({
+const payment = (id, buyer, paidDiary, amount, hours, editedHours = null) => ({
   id,
   orderId: `ord-${id.slice(4)}`,
   member: buyer,
@@ -267,29 +275,33 @@ const payment = (id, buyer, paidDiary, amount, hours) => ({
   provider: 'toss',
   paidAt: hoursAgo(hours),
   refundConsentAt: hoursAgo(hours),
+  editedAt: editedHours == null ? null : hoursAgo(editedHours),
 })
 
 export const payments = [
   payment(
     'pay-4500',
     member('u-040', 'Dami'),
-    diary('d-600', 'Hongdae day', 6, { finishedHours: 24 * 18 }),
+    diary('d-600', 'Hongdae day', 6, { completedHours: 24 * 18 }),
     3000,
     24 * 20,
+    24 * 19,
   ),
   payment(
     'pay-4620',
     member('u-061', 'Rin'),
-    diary('d-640', 'BTS tour', 8, { first: true, finishedHours: 24 * 12 }),
+    diary('d-640', 'BTS tour', 8, { first: true, completedHours: 24 * 12 }),
     2000,
     24 * 14,
+    24 * 13,
   ),
   payment(
     'pay-4700',
     member('u-072', 'Nari'),
-    diary('d-660', 'Myeongdong', 3, { finishedHours: 40 }),
+    diary('d-660', 'Myeongdong', 3, { completedHours: 40 }),
     3000,
     24 * 4,
+    24 * 3,
   ),
   payment(
     'pay-4800',
@@ -301,9 +313,10 @@ export const payments = [
   payment(
     'pay-4810',
     member('u-095', 'Yuna'),
-    diary('d-710', '부산 여행', 6, { finishedHours: 24 * 6 }),
+    diary('d-710', '부산 여행', 6, { completedHours: 24 * 6 }),
     3000,
     24 * 7,
+    24 * 6.5,
   ),
   payment(
     'pay-4950',
@@ -311,6 +324,7 @@ export const payments = [
     diary('d-801', 'SVT concert', 4),
     3000,
     24 * 10,
+    24 * 9,
   ),
   payment(
     'pay-4951',
@@ -318,6 +332,7 @@ export const payments = [
     diary('d-801', 'SVT concert', 4),
     3000,
     24 * 10 - 0.1,
+    24 * 9,
   ),
   payment(
     'pay-4987',
@@ -325,13 +340,15 @@ export const payments = [
     diary('d-842', 'ATEEZ concert day', 5, { first: true }),
     2000,
     24 * 5,
+    24 * 3,
   ),
   payment(
     'pay-5001',
     member('u-210', 'Haru'),
-    diary('d-860', '성수 투어', 3, { finishedHours: 30 }),
+    diary('d-860', '성수 투어', 3, { completedHours: 30 }),
     3000,
     24 * 3,
+    48,
   ),
   payment(
     'pay-5012',
@@ -343,7 +360,7 @@ export const payments = [
   payment(
     'pay-5020',
     member('u-230', 'Eun'),
-    diary('d-890', 'First trip', 3, { first: true }),
+    diary('d-890', 'First trip', 2, { first: true }),
     3000,
     12,
   ),

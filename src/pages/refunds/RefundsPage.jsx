@@ -99,12 +99,12 @@ function RefundsPage() {
                           {waiting ? (
                             <Chip
                               tone={
-                                r.policy.ok
+                                r.refundWithinPolicy
                                   ? 'bg-ok-soft text-ok'
                                   : 'bg-danger/10 text-danger'
                               }
                             >
-                              {r.policy.ok ? '정책 안' : '정책 밖'}
+                              {r.refundWithinPolicy ? '정책 안' : '정책 밖'}
                             </Chip>
                           ) : (
                             <Chip tone={REFUND_STATUS[r.refund.status].tone}>

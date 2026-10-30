@@ -1,23 +1,33 @@
 import { admin, payments } from '../mocks/db.js'
 import { fonts, stickers, templates } from '../mocks/diary.js'
-import { diarySpreads, diaryViews } from '../mocks/memberDiaries.js'
+import {
+  diarySpreads,
+  diaryViews,
+  finishedPages,
+} from '../mocks/memberDiaries.js'
 import { ApiError, handle } from '../mocks/server.js'
 
-// Reading a member's diary in the admin. Only for checking a request — a
-// refund outside the policy, or reopening a paid diary finished by
-// mistake — and every opening is logged (who, when, why); the privacy
-// policy says so. purpose: 'refund-review' | 'reopen-review'.
+// Reading a member's diary in the admin. Only for checking a refund request
+// outside the policy (개인정보처리방침 제11조 4호), and every opening is
+// logged (who, when, why). purpose: 'refund-review'.
 //
-// Resolves with { diary, spreads, templates, stickers, fonts, views }:
-// - spreads: the member app's saved spreads (see mocks/memberDiaries.js);
-// - templates / stickers / fonts: what's needed to draw them;
-// - views: this diary's access log, newest first.
+// Done turns a diary into page images for good: the server keeps those and
+// deletes the spreads and registered photos, and it can never be edited
+// again. So this resolves with
+// - finished: { diary, pages, views } — pages: image URLs, in order;
+// - being edited: { diary, spreads, templates, stickers, fonts, views } —
+//   spreads: the member app's saved spreads (see mocks/memberDiaries.js);
+//   templates / stickers / fonts: what's needed to draw them.
+// A diary whose images haven't arrived yet still has its spreads (the app
+// uploads them again) and comes back like one being edited.
+// views: this diary's access log, newest first.
 // Rejects with 'NOT_FOUND' (e.g. a deleted diary).
 export function openMemberDiary(diaryId, purpose) {
   return handle(() => {
+    const pages = finishedPages[diaryId]
     const spreads = diarySpreads[diaryId]
     const payment = payments.find((p) => p.diary.id === diaryId)
-    if (!spreads || !payment) throw new ApiError('NOT_FOUND')
+    if ((!pages && !spreads) || !payment) throw new ApiError('NOT_FOUND')
     // One opening = one entry (the mock can be asked twice in a row in
     // development).
     const last = diaryViews.at(-1)
@@ -34,36 +44,12 @@ export function openMemberDiary(diaryId, purpose) {
         purpose,
       })
     }
-    return {
+    const opened = {
       diary: payment.diary,
-      spreads,
-      templates,
-      stickers,
-      fonts,
       views: diaryViews.filter((v) => v.diaryId === diaryId).reverse(),
     }
+    return pages
+      ? { ...opened, pages }
+      : { ...opened, spreads, templates, stickers, fonts }
   })
-}
-
-// Lets the member edit a finished, paid diary again (Done pressed too
-// early). reason: kept with the diary and emailed to the member. The
-// refund period doesn't restart. Rejects with 'NOT_FINISHED' or
-// 'NOT_PAID'.
-export function reopenDiary(paymentId, reason) {
-  return handle(() => {
-    const payment = payments.find((p) => p.id === paymentId)
-    if (!payment) throw new ApiError('NOT_FOUND')
-    if (!payment.diary.finishedAt) throw new ApiError('NOT_FINISHED')
-    const entry = {
-      at: new Date().toISOString(),
-      adminName: admin.name,
-      reason,
-    }
-    // Every payment of this diary shares the diary.
-    for (const p of payments.filter((p) => p.diary.id === payment.diary.id)) {
-      p.diary.finishedAt = null
-      p.diary.reopened = [...p.diary.reopened, entry]
-    }
-    return payment.diary
-  }, 600)
 }
