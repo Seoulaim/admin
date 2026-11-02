@@ -229,9 +229,9 @@ function RefundDetail({ request, onChange, onToast }) {
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
             {!refundWithinPolicy && (
               <p className="mr-auto text-xs text-muted">
-                정책 밖이에요. 제5조에 해당하거나, 결제 후 편집한 요청을 회사
-                판단으로 환불한다면(제3조 2항, 기타) 예외 사유를 골라 환불할 수
-                있어요.
+                {policy.ok
+                  ? "위 항목은 모두 맞지만 서버 판정은 정책 밖이에요. 서버 판정이 우선이라 환불하려면 예외 사유가 필요해요. 편집 이력 정리 전에 들어온 요청이면 '기타 (운영 판단)'로 처리해 주세요."
+                  : '정책 밖이에요. 제5조에 해당하거나, 결제 후 편집한 요청을 회사 판단으로 환불한다면(제3조 2항, 기타) 예외 사유를 골라 환불할 수 있어요.'}
               </p>
             )}
             <Button variant="danger" onClick={() => setDialog('reject')}>

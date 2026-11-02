@@ -241,6 +241,64 @@ export const inquiries = [
     refundWithinPolicy: true,
     refund: { ...requested },
   },
+  // Yuki's first diary: refunded by exception, then paid again. Each
+  // request judges its own payment.
+  {
+    id: 'iq-1018',
+    author: asked('u-188', 'Yuki', 'yuki@example.com'),
+    language: 'ja',
+    category: 'refund',
+    paymentId: 'pay-4780',
+    title: 'Refund for my diary',
+    content: 'I will not travel this year.',
+    photoUrls: [],
+    createdAt: at(24 * 11),
+    status: 'answered',
+    answers: [],
+    memo: '',
+    refundWithinPolicy: false,
+    refund: {
+      status: 'refunded',
+      decidedAt: at(24 * 10),
+      adminName: '운영자',
+      exception: { reason: 'other', memo: '여행 취소, 운영 판단으로 환불' },
+      rejectReason: '',
+    },
+  },
+  {
+    id: 'iq-1035',
+    author: asked('u-188', 'Yuki', 'yuki@example.com'),
+    language: 'ja',
+    category: 'refund',
+    paymentId: 'pay-5015',
+    title: 'Paid again by mistake',
+    content: 'I paid again but changed my mind. I did not edit anything.',
+    photoUrls: [],
+    createdAt: at(4),
+    status: 'received',
+    answers: [],
+    memo: '',
+    refundWithinPolicy: true,
+    refund: { ...requested },
+  },
+  // Asked while the old app's editedAt stood; the one-time clean-up cleared
+  // it but left the stored verdict.
+  {
+    id: 'iq-1036',
+    author: asked('u-215', 'Mei', 'mei@example.com'),
+    language: 'ja',
+    category: 'refund',
+    paymentId: 'pay-5018',
+    title: 'Refund please',
+    content: 'I only changed the first page. Can I get a refund?',
+    photoUrls: [],
+    createdAt: at(8),
+    status: 'received',
+    answers: [],
+    memo: '',
+    refundWithinPolicy: false,
+    refund: { ...requested },
+  },
 ]
 
 // Diary payments (member app payments.getMyPayments, plus who paid).
@@ -278,7 +336,25 @@ const payment = (id, buyer, paidDiary, amount, hours, editedHours = null) => ({
   editedAt: editedHours == null ? null : hoursAgo(editedHours),
 })
 
+const paidAgain = diary('d-850', 'Back to Seoul', 4, { first: true })
+
 export const payments = [
+  payment(
+    'pay-4780',
+    member('u-188', 'Yuki'),
+    paidAgain,
+    3000,
+    24 * 12,
+    24 * 11.5,
+  ),
+  payment('pay-5015', member('u-188', 'Yuki'), paidAgain, 3000, 24 * 2),
+  payment(
+    'pay-5018',
+    member('u-215', 'Mei'),
+    diary('d-875', 'Hanok stay', 2, { first: true }),
+    3000,
+    24 * 3,
+  ),
   payment(
     'pay-4500',
     member('u-040', 'Dami'),
