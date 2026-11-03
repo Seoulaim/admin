@@ -1,10 +1,7 @@
-import {
-  fonts,
-  stickerCategories,
-  stickers,
-  templates,
-} from '../mocks/diary.js'
+import { fonts, stickerCategories, stickers } from '../mocks/diary.js'
 import { ApiError, handle } from '../mocks/server.js'
+import { templateFromApi, templateToApi } from './adapters/diaryTemplate.js'
+import { request } from './client.js'
 
 // 다이어리 관리: what the member app's editor offers (DD05). Every list is
 // served in the admin order (diaries.getDiaryTemplates / getEditorStickers /
@@ -64,28 +61,75 @@ function list(items, prefix) {
   }
 }
 
-const templateList = list(templates, 'tpl')
 const stickerList = list(stickers, 'st')
 const categoryList = list(stickerCategories, 'sc')
 const fontList = list(fonts, 'font')
 
-export const getTemplates = templateList.all
-export const getTemplate = templateList.get
+// ── 템플릿·스티커: 실제 백엔드 (/api/v1/admin/diary-templates, -stickers) ──
+// 응답은 adapters/ 가 위 형태로 맞춘다. 백엔드에 없는 것:
+// - 템플릿 usedBy(→ 0), 삭제(→ 'NOT_SUPPORTED', 숨기기만 가능),
+//   다국어 이름(en 만 저장)
+// - 스티커 카테고리(→ categories: [], 카테고리 함수는 'NOT_SUPPORTED')
+// - 순서 일괄 변경: displayOrder 를 항목별 PUT 으로 맞춘다.
+// - 단건 조회: 목록에서 찾는다.
+
+const TEMPLATES = '/api/v1/admin/diary-templates'
+const STICKERS = '/api/v1/admin/diary-stickers'
+
+const notSupported = () => Promise.reject(new ApiError('NOT_SUPPORTED'))
+
+// 목록 맨 뒤 순서.
+const nextOrder = (items) =>
+  items.reduce((max, item) => Math.max(max, item.displayOrder), -1) + 1
+
+async function findRaw(path, id, notFound) {
+  const item = (await request(path)).find((i) => i.id === id)
+  if (!item) throw new ApiError(notFound, { status: 404 })
+  return item
+}
+
+// ids 순서대로 displayOrder 0, 1, 2 … — 바뀐 항목만 PUT.
+async function reorderRaw(path, ids, toApi) {
+  const byId = new Map((await request(path)).map((i) => [i.id, i]))
+  await Promise.all(
+    ids.map((id, displayOrder) => {
+      const raw = byId.get(id)
+      if (!raw || raw.displayOrder === displayOrder) return null
+      return request(`${path}/${id}`, {
+        method: 'PUT',
+        body: toApi({ displayOrder }, raw),
+      })
+    }),
+  )
+}
+
+export const getTemplates = async () =>
+  (await request(TEMPLATES)).map(templateFromApi)
+export const getTemplate = async (id) =>
+  templateFromApi(await findRaw(TEMPLATES, id, 'DIARY_TEMPLATE_NOT_FOUND'))
 // fields: { name, imageUrl, overlayUrl, aspect, frames }. Starts visible.
-export const createTemplate = (fields) =>
-  templateList.create({ ...fields, visible: true, usedBy: 0 })
-export const updateTemplate = templateList.update
+export async function createTemplate(fields) {
+  const displayOrder = nextOrder(await request(TEMPLATES))
+  const created = await request(TEMPLATES, {
+    method: 'POST',
+    body: templateToApi({ ...fields, displayOrder }),
+  })
+  return templateFromApi(created)
+}
+export async function updateTemplate(id, fields) {
+  const base = await findRaw(TEMPLATES, id, 'DIARY_TEMPLATE_NOT_FOUND')
+  const updated = await request(`${TEMPLATES}/${id}`, {
+    method: 'PUT',
+    body: templateToApi(fields, base),
+  })
+  return templateFromApi(updated)
+}
 export const setTemplateVisible = (id, visible) =>
-  templateList.update(id, { visible })
-// Only when no diary being edited uses it ('TEMPLATE_IN_USE'): those can
-// only hide it.
-export const deleteTemplate = (id) =>
-  handle(() => {
-    if (templates.find((t) => t.id === id)?.usedBy > 0) {
-      throw new ApiError('TEMPLATE_IN_USE')
-    }
-  }).then(() => templateList.remove(id))
-export const reorderTemplates = templateList.reorder
+  updateTemplate(id, { visible })
+// 백엔드에 삭제가 없다: 숨기기(setTemplateVisible)만 가능.
+export const deleteTemplate = notSupported
+export const reorderTemplates = (ids) =>
+  reorderRaw(TEMPLATES, ids, templateToApi)
 
 export const getStickers = () =>
   handle(() => ({ categories: stickerCategories, stickers }))
