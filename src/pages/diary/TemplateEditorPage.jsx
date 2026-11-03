@@ -23,6 +23,8 @@ import DiaryLayout from './DiaryLayout.jsx'
 import FrameEditor from './FrameEditor.jsx'
 
 const BACK_TO = '/diary/templates'
+// 백엔드 업로드 도메인 (api/uploads.js)
+const TEMPLATE_UPLOAD = { domain: 'DIARY_TEMPLATE' }
 
 const emptyTemplate = () => ({
   name: {},
@@ -101,8 +103,8 @@ function TemplateForm({ initial }) {
     try {
       const read = await readTemplateSvg(file)
       const [background, overlay] = await Promise.all([
-        uploadImage(read.background),
-        read.overlay ? uploadImage(read.overlay) : null,
+        uploadImage(read.background, TEMPLATE_UPLOAD),
+        read.overlay ? uploadImage(read.overlay, TEMPLATE_UPLOAD) : null,
       ])
       // A used template keeps its frame ids, in order (members' photos
       // are tied to them); extra frames get new ids.
@@ -126,7 +128,7 @@ function TemplateForm({ initial }) {
   async function pickImage(key, file) {
     if (!file) return
     try {
-      const image = await uploadImage(file)
+      const image = await uploadImage(file, TEMPLATE_UPLOAD)
       change(() => ({
         [key]: image.url,
         ...(key === 'imageUrl' && { aspect: image.width / image.height }),
