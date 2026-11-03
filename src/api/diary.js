@@ -1,6 +1,7 @@
-import { fonts, stickerCategories, stickers } from '../mocks/diary.js'
+import { fonts } from '../mocks/diary.js'
 import { ApiError, handle } from '../mocks/server.js'
 import { templateFromApi, templateToApi } from './adapters/diaryTemplate.js'
+import { stickerFromApi, stickerToApi } from './adapters/diarySticker.js'
 import { request } from './client.js'
 
 // 다이어리 관리: what the member app's editor offers (DD05). Every list is
@@ -61,8 +62,6 @@ function list(items, prefix) {
   }
 }
 
-const stickerList = list(stickers, 'st')
-const categoryList = list(stickerCategories, 'sc')
 const fontList = list(fonts, 'font')
 
 // ── 템플릿·스티커: 실제 백엔드 (/api/v1/admin/diary-templates, -stickers) ──
@@ -131,25 +130,42 @@ export const deleteTemplate = notSupported
 export const reorderTemplates = (ids) =>
   reorderRaw(TEMPLATES, ids, templateToApi)
 
-export const getStickers = () =>
-  handle(() => ({ categories: stickerCategories, stickers }))
-// fields: { name, imageUrl, categoryIds }.
-export const createSticker = stickerList.create
-export const updateSticker = stickerList.update
-export const deleteSticker = (id) => stickerList.remove(id)
-export const reorderStickers = stickerList.reorder
-
-// fields: { name }.
-export const createStickerCategory = categoryList.create
-export const updateStickerCategory = categoryList.update
-// Its stickers stay, without this category.
-export const deleteStickerCategory = (id) =>
-  categoryList.remove(id, () => {
-    for (const s of stickers) {
-      s.categoryIds = s.categoryIds.filter((c) => c !== id)
-    }
+// 비활성(isActive=false) 스티커는 삭제된 것으로 보고 뺀다.
+export async function getStickers() {
+  const raw = await request(STICKERS)
+  return {
+    categories: [],
+    stickers: raw.filter((s) => s.isActive).map(stickerFromApi),
+  }
+}
+// fields: { name, imageUrl, categoryIds } (categoryIds 는 버림).
+export async function createSticker(fields) {
+  const displayOrder = nextOrder(await request(STICKERS))
+  const created = await request(STICKERS, {
+    method: 'POST',
+    body: stickerToApi({ ...fields, displayOrder }),
   })
-export const reorderStickerCategories = categoryList.reorder
+  return stickerFromApi(created)
+}
+export async function updateSticker(id, fields) {
+  const base = await findRaw(STICKERS, id, 'DIARY_STICKER_NOT_FOUND')
+  const updated = await request(`${STICKERS}/${id}`, {
+    method: 'PUT',
+    body: stickerToApi(fields, base),
+  })
+  return stickerFromApi(updated)
+}
+// soft delete: isActive=false (백엔드에 DELETE 가 없다).
+export async function deleteSticker(id) {
+  await updateSticker(id, { isActive: false })
+}
+export const reorderStickers = (ids) => reorderRaw(STICKERS, ids, stickerToApi)
+
+// 스티커 카테고리: 백엔드에 없음.
+export const createStickerCategory = notSupported
+export const updateStickerCategory = notSupported
+export const deleteStickerCategory = notSupported
+export const reorderStickerCategories = notSupported
 
 export const getFonts = fontList.all
 // fields: { name, family, stylesheetUrl, previewScale }.
