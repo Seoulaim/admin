@@ -1,7 +1,12 @@
-import { isDateInRange, seoulDateKey } from '../lib/dates.js'
-import { popupStats, responses, survey } from '../mocks/survey.js'
-import { admin } from '../mocks/db.js'
-import { ApiError, handle } from '../mocks/server.js'
+import { ApiError } from '../lib/apiClient.js'
+import {
+  resultsFromApi,
+  responseFromApi,
+  surveyErrorCode,
+  surveyFromApi,
+  surveyToApi,
+} from './adapters/survey.js'
+import { request } from './client.js'
 
 // 만족도 조사: the plan satisfaction survey shown as a popup on the member
 // app's TRAVEL tab (see mocks/survey.js for the shapes).
@@ -25,17 +30,13 @@ import { ApiError, handle } from '../mocks/server.js'
 // member leaves for another screen and enters TRAVEL again.
 // The app gets the questions that aren't archived, in order, localized.
 
-// { questions, updatedAt, answerCounts: { [questionId]: n } }
-export function getSurvey() {
-  return handle(() => ({
-    ...survey,
-    answerCounts: Object.fromEntries(
-      survey.questions.map((q) => [
-        q.id,
-        responses.filter((r) => r.answers[q.id] != null).length,
-      ]),
-    ),
-  }))
+// 백엔드: /api/v1/admin/survey (domain/survey/admin, docs/survey-flow.md).
+// 형태 변환은 adapters/survey.js.
+
+// { enabled, invite, questions (archived 포함), updatedAt,
+//   answerCounts: { [questionId]: n } }
+export async function getSurvey() {
+  return surveyFromApi(await request('/api/v1/admin/survey'))
 }
 
 // invite: { title, body } ({ en, ko, zh, ja }, en required).
@@ -43,74 +44,56 @@ export function getSurvey() {
 // without an id. A question that already has answers can't be dropped —
 // archive it ('QUESTION_HAS_ANSWERS'). Every question needs an English
 // title, choice questions 2+ options with English labels
-// ('INVALID_SURVEY').
-export function saveSurvey(questions, invite) {
-  return handle(() => {
-    const kept = new Set(questions.map((q) => q.id).filter(Boolean))
-    const dropped = survey.questions.filter((q) => !kept.has(q.id))
-    if (dropped.some((q) => responses.some((r) => r.answers[q.id] != null))) {
-      throw new ApiError('QUESTION_HAS_ANSWERS')
+// ('INVALID_SURVEY'). Resolves with the saved survey (getSurvey 형태).
+export async function saveSurvey(questions, invite) {
+  try {
+    const saved = await request('/api/v1/admin/survey', {
+      method: 'PUT',
+      body: surveyToApi(questions, invite),
+    })
+    return surveyFromApi(saved)
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new ApiError(surveyErrorCode(error.code), {
+        status: error.status,
+        details: error.details,
+      })
     }
-    const valid = questions.every(
-      (q) =>
-        q.title.en?.trim() &&
-        (q.type !== 'single' && q.type !== 'multiple'
-          ? true
-          : q.options.length >= 2 &&
-            q.options.every((o) => o.label.en?.trim())),
-    )
-    if (!valid || !invite.title.en?.trim() || !invite.body.en?.trim()) {
-      throw new ApiError('INVALID_SURVEY')
-    }
-    survey.invite = invite
-    const stamp = Date.now()
-    survey.questions = questions.map((q, i) => ({
-      ...q,
-      id: q.id ?? `q-${stamp}-${i}`,
-      options: q.options.map((o, j) => ({
-        ...o,
-        id: o.id ?? `o-${stamp}-${i}-${j}`,
-      })),
-    }))
-    survey.updatedAt = new Date().toISOString()
-    return survey
-  }, 500)
+    throw error
+  }
 }
 
 // range: { from, to } (Seoul dates, '' = open). Resolves with
 // { questions (archived ones too, for old answers), responses (newest
 // first, in range), popup: { planCreators, responded, shown, closed,
-// snoozed } } — popup counts are for all time.
-// The backend could send the totals per question instead of every
-// response once there are many (lib/survey.js shows what they are).
-export function getSurveyResults(range) {
-  return handle(() => ({
-    questions: survey.questions,
-    responses: responses
-      .filter((r) => isDateInRange(seoulDateKey(r.submittedAt), range))
-      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)),
-    popup: { ...popupStats, responded: responses.length },
-  }))
+// accepted, snoozed } } — popup counts are for all time.
+export async function getSurveyResults(range = {}) {
+  const params = new URLSearchParams()
+  if (range.from) params.set('from', range.from)
+  if (range.to) params.set('to', range.to)
+  const query = params.toString()
+  const raw = await request(
+    `/api/v1/admin/survey/responses${query ? `?${query}` : ''}`,
+  )
+  return resultsFromApi(raw)
 }
 
 // Marks the gift cards of these responses as sent (the operator sent them
-// to each response's email). Resolves with the updated responses.
-export function markGiftsSent(responseIds) {
-  return handle(() => {
-    const now = new Date().toISOString()
-    return responses
-      .filter((r) => responseIds.includes(r.id) && r.gift.status !== 'sent')
-      .map((r) => {
-        r.gift = { status: 'sent', sentAt: now, adminName: admin.name }
-        return r
-      })
+// to each response's email). Resolves with the updated responses (이미
+// 발송됐거나 없는 id 는 빠진다).
+export async function markGiftsSent(responseIds) {
+  const raw = await request('/api/v1/admin/survey/responses/gifts-sent', {
+    method: 'POST',
+    body: { responseIds },
   })
+  return (raw ?? []).map(responseFromApi)
 }
 
 // Turns the invite popup on / off in the member app right away.
-export function setSurveyEnabled(enabled) {
-  return handle(() => {
-    survey.enabled = enabled
-    return { enabled }
+export async function setSurveyEnabled(enabled) {
+  const raw = await request('/api/v1/admin/survey/enabled', {
+    method: 'PATCH',
+    body: { enabled },
   })
+  return { enabled: Boolean(raw?.enabled) }
 }
