@@ -1,5 +1,9 @@
-import { promotions } from '../mocks/db.js'
-import { ApiError, handle } from '../mocks/server.js'
+import {
+  promotionFromApi,
+  promotionToApi,
+  withContentErrors,
+} from './adapters/content.js'
+import { request } from './client.js'
 
 // Promotion: { id, placement: 'HOME' | 'DIARY', adminTitle, imageUrl,
 //   title, description, ctaLabel — { en, ko, zh, ja } (ctaLabel: DIARY only),
@@ -12,83 +16,57 @@ import { ApiError, handle } from '../mocks/server.js'
 // within their period — Korean time, through 23:59 of endDate — in the
 // admin order. Nothing turns a banner off when it ends; it just isn't served.
 
-function find(id) {
-  const promotion = promotions.find((p) => p.id === id)
-  if (!promotion) throw new ApiError('NOT_FOUND')
-  return promotion
-}
+// ── 실제 백엔드: /api/v1/admin/banners (adapters/content.js) ──
+// 없는 배너는 'NOT_FOUND', 기본 배너 끄기·삭제는 'DEFAULT_PROMOTION'.
 
-function editable(id) {
-  const promotion = find(id)
-  if (promotion.isDefault) throw new ApiError('DEFAULT_PROMOTION')
-  return promotion
-}
+const BANNERS = '/api/v1/admin/banners'
+
+const call = (suffix = '', options) =>
+  withContentErrors(request(`${BANNERS}${suffix}`, options))
 
 // placement null: every promotion, newest first. HOME / DIARY: that
 // placement's promotions in the admin order.
-export function getPromotions(placement = null) {
-  return handle(() =>
-    placement
-      ? promotions.filter((p) => p.placement === placement)
-      : [...promotions].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-  )
+export async function getPromotions(placement = null) {
+  const query = placement ? `?${new URLSearchParams({ placement })}` : ''
+  return ((await call(query)) ?? []).map(promotionFromApi)
 }
 
 // Rejects with 'NOT_FOUND'.
-export function getPromotion(id) {
-  return handle(() => find(id))
+export async function getPromotion(id) {
+  return promotionFromApi(await call(`/${id}`))
 }
 
 // fields: the Promotion fields above except id, enabled, isDefault and
 // createdAt. Added last in its placement, turned on.
-export function createPromotion(fields) {
-  return handle(() => {
-    const promotion = {
-      ...fields,
-      id: `pr-${Date.now()}`,
-      enabled: true,
-      isDefault: false,
-      createdAt: new Date().toISOString(),
-    }
-    promotions.push(promotion)
-    return promotion
-  })
+export async function createPromotion(fields) {
+  return promotionFromApi(
+    await call('', { method: 'POST', body: promotionToApi(fields) }),
+  )
 }
 
 // fields: as createPromotion; the placement can't change. The default
 // banner keeps no period.
-export function updatePromotion(id, fields) {
-  return handle(() => {
-    const promotion = find(id)
-    Object.assign(promotion, fields, {
-      placement: promotion.placement,
-      ...(promotion.isDefault && { startDate: null, endDate: null }),
-    })
-    return promotion
-  })
+export async function updatePromotion(id, fields) {
+  return promotionFromApi(
+    await call(`/${id}`, {
+      method: 'PUT',
+      body: promotionToApi(fields, { editing: true }),
+    }),
+  )
 }
 
 // The list's on/off switch. Rejects with 'DEFAULT_PROMOTION' for the
 // default banner (always on).
-export function setPromotionEnabled(id, enabled) {
-  return handle(() => {
-    editable(id).enabled = enabled
-  })
+export async function setPromotionEnabled(id, enabled) {
+  await call(`/${id}/enabled`, { method: 'PATCH', body: { enabled } })
 }
 
 // Rejects with 'DEFAULT_PROMOTION' for the default banner.
-export function deletePromotion(id) {
-  return handle(() => {
-    const index = promotions.indexOf(editable(id))
-    promotions.splice(index, 1)
-  })
+export async function deletePromotion(id) {
+  await call(`/${id}`, { method: 'DELETE' })
 }
 
 // ids: every promotion of the placement, in the new order (first = shown first).
-export function reorderPromotions(placement, ids) {
-  return handle(() => {
-    const ordered = ids.map(find)
-    const others = promotions.filter((p) => p.placement !== placement)
-    promotions.splice(0, promotions.length, ...others, ...ordered)
-  })
+export async function reorderPromotions(placement, ids) {
+  await call('/reorder', { method: 'PUT', body: { placement, ids } })
 }

@@ -192,6 +192,7 @@ function PromotionForm({ initial }) {
               value={form.imageUrl}
               onChange={set('imageUrl')}
               aspect={ASPECT}
+              uploadDomain="CONTENT"
               invalid={Boolean(errors.imageUrl)}
             />
           </Field>
