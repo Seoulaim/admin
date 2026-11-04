@@ -45,6 +45,7 @@ function MemberRow({
           aspect={PHOTO_ASPECT}
           sizeClass="w-24"
           compact
+          uploadDomain="ARTIST"
         />
       </div>
 

@@ -415,6 +415,7 @@ function PlaceForm({ initial, groups, keywords, onSaved, onDeleted }) {
             onChange={set('photos')}
             max={MAX_PHOTOS}
             aspect={PLACE_PHOTO}
+            uploadDomain="PLACE"
           />
           {errors.photos && (
             <p role="alert" className="-mt-3 text-xs font-medium text-danger">

@@ -11,6 +11,7 @@ const RATIO_TOLERANCE = 0.02
 // cropped in the app, so they're warned about (still allowed).
 // sizeClass: the drop area's width (it keeps the aspect ratio). compact:
 // short labels for small areas (e.g. member photos).
+// uploadDomain: 백엔드 업로드 domain (api/uploads.js), 없으면 기본값.
 function ImageInput({
   id,
   value,
@@ -19,6 +20,7 @@ function ImageInput({
   invalid = false,
   sizeClass = 'w-full max-w-md',
   compact = false,
+  uploadDomain,
 }) {
   const inputRef = useRef(null)
   const [uploading, setUploading] = useState(false)
@@ -32,7 +34,7 @@ function ImageInput({
     setUploading(true)
     setMessage(null)
     try {
-      const image = await uploadImage(file)
+      const image = await uploadImage(file, { domain: uploadDomain })
       onChange(image.url)
       const expected = aspect.width / aspect.height
       if (

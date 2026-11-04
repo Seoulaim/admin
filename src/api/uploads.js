@@ -38,7 +38,8 @@ async function imageSize(file) {
 // Image upload (banners, places, stickers, templates …): { url, width,
 // height }. Rejects with 'INVALID_IMAGE' when the file isn't an image.
 // options.domain: 백엔드 FileDomain — 'DIARY_STICKER'(기본) | 'DIARY_TEMPLATE'
-//   | 'PRODUCT'.
+//   | 'PRODUCT' | 'ARTIST'(그룹·멤버 사진) | 'PLACE'(장소 사진). 저장 때
+//   백엔드가 파일의 domain 을 검사하므로 화면에 맞는 값을 넘겨야 한다.
 // VITE_API_BASE_URL 이 있으면 어드민 presigned 업로드(POST
 // /api/v1/admin/files/presigned-upload → S3 PUT), 없으면 mock (브라우저
 // object URL, 새로고침하면 사라짐). 실제 업로드도 url 은 미리보기용 object
