@@ -12,6 +12,8 @@ import {
 //   ApiError(code) 로 바꿔 reject 한다. 화면은 error.code 로 분기.
 // - 401/403 (틀린 키·키 없음 → 403 AUTH_ACCESS_DENIED) 이면 키를 지우고
 //   LOGIN_REQUIRED_EVENT 를 보내 AdminLayout 이 /login 으로 보낸다.
+// - admin: false — 어드민이 아닌 공개 API (예: GET /api/v1/keywords).
+//   X-Admin-Key 를 붙이지 않고, 401/403 이어도 로그아웃시키지 않는다.
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(
   /\/+$/,
@@ -53,8 +55,11 @@ const STATUS_CODES = {
 }
 
 // body: JSON 으로 보낼 객체. Resolves with the parsed JSON (null when empty).
-export async function request(path, { method = 'GET', body, signal } = {}) {
-  const key = getAdminKey()
+export async function request(
+  path,
+  { method = 'GET', body, signal, admin = true } = {},
+) {
+  const key = admin ? getAdminKey() : null
   let response
   try {
     response = await fetch(API_BASE_URL + path, {
@@ -76,7 +81,7 @@ export async function request(path, { method = 'GET', body, signal } = {}) {
   const data = await readJson(response)
   if (response.ok) return data
 
-  if (response.status === 401 || response.status === 403) {
+  if (admin && (response.status === 401 || response.status === 403)) {
     clearAdminKey()
     window.dispatchEvent(new Event(LOGIN_REQUIRED_EVENT))
   }
