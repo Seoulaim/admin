@@ -1,6 +1,9 @@
 import { loadNaverGeocoder } from '../lib/naverMaps.js'
 import { keywords, places } from '../mocks/places.js'
 import { ApiError, handle } from '../mocks/server.js'
+import { placeDetailToApi, placeFromApi, placeToApi } from './adapters/place.js'
+import { getGroups } from './artists.js'
+import { request } from './client.js'
 
 // Place: { id, name, topic, address, lat, lng, naverMapUrl, phone, website,
 //   videoUrls, photos, memberIds, keywordIds, hours, visible, updatedAt }
@@ -27,55 +30,97 @@ function finder(list) {
     return item
   }
 }
-const findPlace = finder(places)
 const findKeyword = finder(keywords)
 
-// Newest edit first.
-export function getPlaces() {
-  return handle(() =>
-    [...places].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-  )
+// ── 장소: 실제 백엔드 /api/v1/admin/places (adapters/place.js) ──
+// 백엔드 목록은 요약 + 커서 페이징이라, 화면이 쓰는 전체 필드를 위해 모든
+// 페이지를 받은 뒤 상세를 동시 DETAIL_CONCURRENCY 개씩 조회한다.
+// 등록·수정은 전체 교체(PUT) — 화면에 없는 필드는 기존 값을 이어 보낸다.
+// 백엔드에 없는 것: topic, naverMapUrl, videoUrls, 다국어 이름·주소,
+// 하루 2개 이상의 브레이크.
+
+const PLACES = '/api/v1/admin/places'
+const PAGE_SIZE = 50 // 백엔드 최대
+const DETAIL_CONCURRENCY = 6
+
+const getRawPlace = (id) => request(`${PLACES}/${id}`)
+
+async function getPlaceIds() {
+  const ids = []
+  let cursor = null
+  do {
+    const query = new URLSearchParams({ size: PAGE_SIZE })
+    if (cursor) query.set('cursor', cursor)
+    const page = await request(`${PLACES}?${query}`)
+    ids.push(...page.items.map((item) => item.id))
+    cursor = page.nextCursor
+  } while (cursor)
+  return ids
 }
 
-// Rejects with 'NOT_FOUND'.
-export function getPlace(id) {
-  return handle(() => findPlace(id))
+// fn 을 items 에 최대 limit 개씩 동시에, 결과는 items 순서대로.
+async function mapLimited(items, limit, fn) {
+  const results = new Array(items.length)
+  let next = 0
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++
+      results[i] = await fn(items[i])
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  )
+  return results
+}
+
+// Newest edit first.
+export async function getPlaces() {
+  const [ids, groups] = await Promise.all([getPlaceIds(), getGroups()])
+  const raws = await mapLimited(ids, DETAIL_CONCURRENCY, getRawPlace)
+  return raws
+    .map((raw) => placeFromApi(raw, groups))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+// Rejects with 'PLACE_NOT_FOUND'.
+export async function getPlace(id) {
+  const [raw, groups] = await Promise.all([getRawPlace(id), getGroups()])
+  return placeFromApi(raw, groups)
 }
 
 // fields: a Place without id / updatedAt. Starts visible.
-export function createPlace(fields) {
-  return handle(() => {
-    const place = {
-      ...fields,
-      id: `pl-${Date.now()}`,
-      visible: true,
-      updatedAt: new Date().toISOString(),
-    }
-    places.push(place)
-    return place
+export async function createPlace(fields) {
+  const groups = await getGroups()
+  const created = await request(PLACES, {
+    method: 'POST',
+    body: placeToApi({ ...fields, visible: true }, null, groups),
+  })
+  return placeFromApi(created, groups)
+}
+
+export async function updatePlace(id, fields) {
+  const [base, groups] = await Promise.all([getRawPlace(id), getGroups()])
+  const updated = await request(`${PLACES}/${id}`, {
+    method: 'PUT',
+    body: placeToApi(fields, base, groups),
+  })
+  return placeFromApi(updated, groups)
+}
+
+// 백엔드 수정은 전체 교체라 지금 값을 받아 visible 만 바꿔 보낸다.
+export async function setPlaceVisible(id, visible) {
+  const base = await getRawPlace(id)
+  await request(`${PLACES}/${id}`, {
+    method: 'PUT',
+    body: { ...placeDetailToApi(base), visible },
   })
 }
 
-export function updatePlace(id, fields) {
-  return handle(() => {
-    const place = findPlace(id)
-    Object.assign(place, fields, { updatedAt: new Date().toISOString() })
-    return place
-  })
-}
-
-export function setPlaceVisible(id, visible) {
-  return handle(() => {
-    findPlace(id).visible = visible
-  })
-}
-
-// Members' saved plans that include it lose it (the backend drops it from
-// them), so the screen asks to turn it off (visible) first.
-export function deletePlace(id) {
-  return handle(() => {
-    places.splice(places.indexOf(findPlace(id)), 1)
-  })
+// 회원 일정에 들어 있는 장소는 백엔드가 409 'PLACE_IN_USE' 로 거절한다
+// (그 코드로 reject) — 삭제 대신 노출을 끈다.
+export async function deletePlace(id) {
+  await request(`${PLACES}/${id}`, { method: 'DELETE' })
 }
 
 // Korean address → { lat, lng, roadAddress, englishAddress, inSeoul } with
