@@ -3,43 +3,47 @@ import { imageUrlFromKey, keyForUrl } from './image.js'
 
 // 백엔드 AdminPlaceDetailResponse ↔ 화면의 Place (api/places.js 참고).
 //
-// 백엔드: { id, name, category, visible, address, district,
-//   location: { latitude, longitude }, avgStayMinutes, phone, homepageUrl,
-//   imageKeys, operatingPeriod, openingHours, keywordCodes,
+// 백엔드 (develop, PR #53 이후): { id, name, summary, category, visible,
+//   address, district, location: { latitude, longitude }, avgStayMinutes,
+//   phone, homepageUrl, naverMapUrl, referenceLinks, imageKeys,
+//   operatingPeriod, openingHours, keywordCodes,
 //   artists: [{ artistGroupId, artistId, description, … }], updatedAt }
+//   name·summary·address 는 LocalizedText { en, ko, ja, zh } (빈 언어 null).
 //
-// - name: 백엔드는 문자열 하나(시드는 한국어). 읽을 때 en·ko 둘 다 그 값,
-//   쓸 때는 기존 값에서 바뀐 칸(ko 우선), 새 장소는 ko || en.
-// - topic: 백엔드에 없음 → category 라벨로 채움(필수 검증 통과용), 쓸 때
-//   버림. category 는 화면 입력이 없어 기존 값 유지, 새 장소는 FANDOM_PLACE.
-// - address: 백엔드는 하나 → ko 를 저장. 읽을 때 ko·en 둘 다 그 값.
-//   district 는 주소의 '…구' 를 뽑고, 못 뽑으면 기존 값.
+// - name ↔ name, topic ↔ summary, address ↔ address: 4개 언어 1:1.
+//   읽을 때 null → '', 쓸 때 빈 칸 → null. 필수: name·summary 는 en,
+//   address 는 ko·en (화면 검증과 같음).
+// - category: 화면 입력이 없어 기존 값 유지, 새 장소는 FANDOM_PLACE.
+// - district: 한국어 주소의 '…구' 를 뽑고, 못 뽑으면 기존 값.
+// - naverMapUrl ↔ naverMapUrl, videoUrls ↔ referenceLinks (최대 5개).
 // - photos ↔ imageKeys (업로드 domain PLACE, 첫 장이 대표).
 // - memberIds ↔ artists: 그룹 단위 연결(artistId null)은 그 그룹 멤버
 //   전원으로 펼친다. 쓸 때 원래 그룹 단위였던 그룹의 멤버가 모두 남아
 //   있으면 그룹 단위로 되돌리고, description 은 이어받는다.
-// - keywordIds ↔ keywordCodes (키워드 id = code).
+// - keywordIds ↔ keywordCodes (화면의 키워드 id = code).
 // - hours ↔ openingHours: hoursToApi 위 규칙 참고. 휴무는 closed, 브레이크는
 //   앞 1개, 자정 넘김·00:00 은 그대로, 24:00 만 00:00 으로.
-// - naverMapUrl·videoUrls: 백엔드에 없음 → ''·[] (쓸 때 버림).
 // - avgStayMinutes·operatingPeriod: 화면에 없음 → 기존 값 유지(새 장소는
 //   백엔드 기본: 60분, 상시 운영).
 
 export const DEFAULT_CATEGORY = 'FANDOM_PLACE'
 
-const CATEGORY_TOPICS = {
-  FANDOM_PLACE: { en: 'Fandom place', ko: '팬덤 장소' },
-  GOODS_SHOP: { en: 'Goods shop', ko: '굿즈숍' },
-  ALBUM_SHOP: { en: 'Album shop', ko: '음반 매장' },
-  PHOTO_BOOTH: { en: 'Photo booth', ko: '포토부스' },
-  ATTRACTION: { en: 'Attraction', ko: '명소' },
-}
-
 const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 const MIDNIGHT = '00:00' // 24:00 은 백엔드에서 00:00 (다음 날 자정 마감)
 const MINUTES_PER_DAY = 24 * 60
 
-const both = (text) => ({ en: text ?? '', ko: text ?? '', zh: '', ja: '' })
+// LocalizedText { en, ko, ja, zh } (빈 언어 null) ↔ 화면 { en, ko, zh, ja }.
+export const textFromApi = (text) => ({
+  en: text?.en ?? '',
+  ko: text?.ko ?? '',
+  zh: text?.zh ?? '',
+  ja: text?.ja ?? '',
+})
+
+export const textToApi = (text) => {
+  const value = (lang) => (text?.[lang] ?? '').trim() || null
+  return { en: value('en'), ko: value('ko'), ja: value('ja'), zh: value('zh') }
+}
 
 // ---------- 읽기 ----------
 
@@ -80,19 +84,15 @@ function memberIdsFromApi(artists, groups) {
 export function placeFromApi(raw, groups) {
   return {
     id: raw.id,
-    name: both(raw.name),
-    topic: {
-      zh: '',
-      ja: '',
-      ...(CATEGORY_TOPICS[raw.category] ?? CATEGORY_TOPICS[DEFAULT_CATEGORY]),
-    },
-    address: both(raw.address),
+    name: textFromApi(raw.name),
+    topic: textFromApi(raw.summary),
+    address: textFromApi(raw.address),
     lat: raw.location?.latitude ?? null,
     lng: raw.location?.longitude ?? null,
-    naverMapUrl: '',
+    naverMapUrl: raw.naverMapUrl ?? '',
     phone: raw.phone ?? '',
     website: raw.homepageUrl ?? '',
-    videoUrls: [],
+    videoUrls: raw.referenceLinks ?? [],
     photos: (raw.imageKeys ?? []).map(imageUrlFromKey),
     memberIds: memberIdsFromApi(raw.artists, groups),
     keywordIds: raw.keywordCodes ?? [],
@@ -180,16 +180,6 @@ export function hoursToApi(hours) {
   return DAYS.map((day, i) => dayToApi(WEEKDAYS[i], hours[day.id], day.label))
 }
 
-// 기존 값(current)과 다른 칸을 고른다: ko 우선, 그다음 en.
-function pickText(localized, current) {
-  const ko = (localized?.ko ?? '').trim()
-  const en = (localized?.en ?? '').trim()
-  if (current == null) return ko || en
-  if (ko && ko !== current) return ko
-  if (en && en !== current) return en
-  return current
-}
-
 const districtOf = (address) =>
   address.match(/(?:^|\s)(\S+구)(?=\s|$)/)?.[1] ?? null
 
@@ -228,17 +218,22 @@ function artistsToApi(memberIds, baseLinks, groups) {
 // AdminPlaceRequest (등록·수정 공용, 전체 교체).
 // base: 지금 서버에 있는 상세(raw), 새 장소면 null. groups: 화면 형태.
 export function placeToApi(fields, base, groups) {
-  const address = (fields.address?.ko ?? '').trim()
+  const address = textToApi(fields.address)
   return {
-    name: pickText(fields.name, base?.name),
+    name: textToApi(fields.name),
+    summary: textToApi(fields.topic),
     category: base?.category ?? DEFAULT_CATEGORY,
     visible: fields.visible ?? base?.visible ?? true,
-    address: address || null,
-    district: districtOf(address) ?? base?.district ?? null,
+    address,
+    district: districtOf(address.ko ?? '') ?? base?.district ?? null,
     location: { latitude: fields.lat, longitude: fields.lng },
     avgStayMinutes: base?.avgStayMinutes ?? null,
     phone: fields.phone?.trim() || null,
     homepageUrl: fields.website?.trim() || null,
+    naverMapUrl: fields.naverMapUrl?.trim() || null,
+    referenceLinks: (fields.videoUrls ?? [])
+      .map((url) => url.trim())
+      .filter(Boolean),
     imageKeys: (fields.photos ?? []).map(keyForUrl).filter(Boolean),
     operatingPeriod: base?.operatingPeriod ?? null,
     openingHours: hoursToApi(fields.hours),
@@ -251,6 +246,7 @@ export function placeToApi(fields, base, groups) {
 export function placeDetailToApi(raw) {
   return {
     name: raw.name,
+    summary: raw.summary,
     category: raw.category,
     visible: raw.visible,
     address: raw.address,
@@ -259,6 +255,8 @@ export function placeDetailToApi(raw) {
     avgStayMinutes: raw.avgStayMinutes,
     phone: raw.phone,
     homepageUrl: raw.homepageUrl,
+    naverMapUrl: raw.naverMapUrl,
+    referenceLinks: raw.referenceLinks ?? [],
     imageKeys: raw.imageKeys ?? [],
     operatingPeriod: raw.operatingPeriod,
     openingHours: raw.openingHours,
@@ -275,10 +273,17 @@ export function placeDetailToApi(raw) {
 
 // ---------- 키워드 ----------
 
-// KeywordResponse { id, code, displayOrder } → { id: code, name, placeCount }.
-// 표시 문구는 회원 앱이 code 로 번역하므로 이름은 code 그대로.
+// AdminKeywordResponse { id(UUID), code, name: LocalizedText, displayOrder,
+// placeCount } → 화면 Keyword { id: code, name, placeCount }.
+// 화면의 키워드 id 는 장소 keywordIds(= 백엔드 keywordCodes)와 맞추려고
+// code 를 쓴다. 수정·삭제·순서 변경에 필요한 UUID 는 api/places.js 가
+// code → UUID 로 바꿔 보낸다.
 export const keywordFromApi = (raw) => ({
   id: raw.code,
-  name: { en: raw.code, ko: '', zh: '', ja: '' },
-  placeCount: 0,
+  name: textFromApi(raw.name),
+  placeCount: raw.placeCount ?? 0,
 })
+
+// AdminKeywordRequest { code?, name }. code 는 생략 → 백엔드가 영어 이름으로
+// 만든다 (예: "Night View" → NIGHT_VIEW). 수정 때는 백엔드가 code 를 무시.
+export const keywordToApi = (fields) => ({ name: textToApi(fields.name) })
