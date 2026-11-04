@@ -1,8 +1,6 @@
-import { todayKey } from '../lib/dates.js'
-import { groups } from '../mocks/artists.js'
-import { birthdayCafes, calendarEntries } from '../mocks/db.js'
-import { places } from '../mocks/places.js'
-import { ApiError, handle } from '../mocks/server.js'
+import { ApiError } from '../lib/apiClient.js'
+import { groupFromApi, groupOrderToApi, groupToApi } from './adapters/artist.js'
+import { request } from './client.js'
 
 // Group: { id, name, imageUrl, debutDate, note, updatedAt, members }
 // Member: { id, name, imageUrl, birthDate }
@@ -16,126 +14,86 @@ import { ApiError, handle } from '../mocks/server.js'
 // Member ids are what biases, events (groupIds) and birthday cafes
 // (memberId) point to, so they never change once made.
 //
-// Everything that picks groups or members (이벤트 관리's group filter and
-// group chips, the birthday cafe member picker) reads getGroups, so new
-// groups show up there and deleted ones disappear. Deleting also cleans up
-// what pointed at them (see getGroupLinks).
+// ── 실제 백엔드: /api/v1/admin/artist-groups (adapters/artist.js) ──
+// 백엔드에 없는 것:
+// - 그룹 삭제·멤버 삭제 (멤버를 bias·장소·굿즈가 참조) → 'NOT_SUPPORTED'
+// - 단건 조회 → 목록에서 찾는다
+// - 순서 일괄 변경 → 바뀐 그룹만 displayOrder 를 PUT
+// - 삭제 영향 미리보기(getGroupLinks) → 모두 0
+// - 관리자 메모(note) → 저장되지 않음
 
-const removeWhere = (list, test) => {
-  for (let i = list.length - 1; i >= 0; i--)
-    if (test(list[i])) list.splice(i, 1)
-}
+const GROUPS = '/api/v1/admin/artist-groups'
 
-// Deleted members: their birthday cafes go, and places drop their tags.
-function forgetMembers(memberIds) {
-  removeWhere(birthdayCafes, (cafe) => memberIds.includes(cafe.memberId))
-  for (const place of places) {
-    place.memberIds = place.memberIds.filter((id) => !memberIds.includes(id))
-  }
-}
+const notSupported = () => Promise.reject(new ApiError('NOT_SUPPORTED'))
 
-function find(id) {
-  const group = groups.find((g) => g.id === id)
-  if (!group) throw new ApiError('NOT_FOUND')
+const getRawGroups = async () => (await request(GROUPS)).items ?? []
+
+async function findRaw(id) {
+  const group = (await getRawGroups()).find((g) => g.id === id)
+  if (!group) throw new ApiError('ARTIST_GROUP_NOT_FOUND', { status: 404 })
   return group
 }
 
-// New members (no id yet) get one; existing ones keep theirs.
-function withMemberIds(members) {
-  return members.map((member, i) =>
-    member.id ? member : { ...member, id: `m-${Date.now()}-${i}` },
-  )
-}
-
-// What deleting the group (or one of its members) also changes:
+// 그룹·멤버 삭제가 없어서 삭제 영향도 없다.
 // { onlyEntries, sharedEntries, cafes: { [memberId]: count },
 //   places: { [memberId]: count } }
-// - onlyEntries: calendar entries / events with only this group — deleted
-//   with it.
-// - sharedEntries: ones with other groups too — this group is taken off.
-// - cafes: each member's birthday cafes — deleted with the member.
-// - places: places tagged with each member — the tag is taken off.
-export function getGroupLinks(id) {
-  return handle(() => {
-    const group = find(id)
-    const withGroup = calendarEntries.filter((e) => e.groupIds.includes(id))
-    const only = withGroup.filter((e) => e.groupIds.length === 1).length
-    const countBy = (list, test) => {
-      const counts = {}
-      for (const member of group.members) {
-        const count = list.filter((item) => test(item, member.id)).length
-        if (count) counts[member.id] = count
-      }
-      return counts
-    }
-    return {
-      onlyEntries: only,
-      sharedEntries: withGroup.length - only,
-      cafes: countBy(birthdayCafes, (cafe, id) => cafe.memberId === id),
-      places: countBy(places, (place, id) => place.memberIds.includes(id)),
-    }
-  })
+export async function getGroupLinks() {
+  return { onlyEntries: 0, sharedEntries: 0, cafes: {}, places: {} }
 }
 
 // Groups in the admin order, each with its members in order.
-export function getGroups() {
-  return handle(() => groups)
+export async function getGroups() {
+  return (await getRawGroups()).map(groupFromApi)
 }
 
-// Rejects with 'NOT_FOUND'.
-export function getGroup(id) {
-  return handle(() => find(id))
+// Rejects with 'ARTIST_GROUP_NOT_FOUND'.
+export async function getGroup(id) {
+  return groupFromApi(await findRaw(id))
 }
 
 // fields: { name, imageUrl, debutDate, note, members } — members in order.
 // Added last.
-export function createGroup(fields) {
-  return handle(() => {
-    const group = {
-      ...fields,
-      id: `g-${Date.now()}`,
-      members: withMemberIds(fields.members),
-      updatedAt: todayKey(),
-    }
-    groups.push(group)
-    return group
+export async function createGroup(fields) {
+  const raws = await getRawGroups()
+  const displayOrder =
+    raws.reduce((max, g) => Math.max(max, g.displayOrder), -1) + 1
+  const created = await request(GROUPS, {
+    method: 'POST',
+    body: groupToApi(fields, displayOrder),
   })
+  return groupFromApi(created)
 }
 
-// fields: as createGroup. Members left out of `members` are deleted, with
-// their birthday cafes (the backend also takes them off members' biases).
-export function updateGroup(id, fields) {
-  return handle(() => {
-    const group = find(id)
-    const kept = new Set(fields.members.map((m) => m.id))
-    forgetMembers(group.members.filter((m) => !kept.has(m.id)).map((m) => m.id))
-    Object.assign(group, fields, {
-      members: withMemberIds(fields.members),
-      updatedAt: todayKey(),
-    })
-    return group
+// fields: as createGroup. 백엔드는 빠진 멤버를 지우지 않으므로, 저장된
+// 멤버를 뺀 채 저장하면 아무것도 보내지 않고 'NOT_SUPPORTED' 로 reject.
+export async function updateGroup(id, fields) {
+  const base = await findRaw(id)
+  const kept = new Set(fields.members.map((m) => m.id).filter(Boolean))
+  if (base.members.some((m) => !kept.has(m.id))) {
+    throw new ApiError('NOT_SUPPORTED')
+  }
+  const updated = await request(`${GROUPS}/${id}`, {
+    method: 'PUT',
+    body: groupToApi(fields, base.displayOrder),
   })
+  return groupFromApi(updated)
 }
 
-// Deletes the group and its members, with what getGroupLinks lists.
-export function deleteGroup(id) {
-  return handle(() => {
-    const group = find(id)
-    removeWhere(
-      calendarEntries,
-      (e) => e.groupIds.length === 1 && e.groupIds[0] === id,
-    )
-    for (const entry of calendarEntries) {
-      entry.groupIds = entry.groupIds.filter((g) => g !== id)
-    }
-    forgetMembers(group.members.map((m) => m.id))
-    groups.splice(groups.indexOf(group), 1)
-  })
-}
+// 백엔드에 그룹 삭제가 없다.
+export const deleteGroup = notSupported
 
 // ids: every group id in the new order (first = shown first in the app).
-export function reorderGroups(ids) {
-  return handle(() => {
-    groups.splice(0, groups.length, ...ids.map(find))
-  })
+// displayOrder 0, 1, 2 … — 바뀐 그룹만 PUT (멤버는 그대로).
+export async function reorderGroups(ids) {
+  const byId = new Map((await getRawGroups()).map((g) => [g.id, g]))
+  await Promise.all(
+    ids.map((id, displayOrder) => {
+      const raw = byId.get(id)
+      if (!raw || raw.displayOrder === displayOrder) return null
+      return request(`${GROUPS}/${id}`, {
+        method: 'PUT',
+        body: groupOrderToApi(raw, displayOrder),
+      })
+    }),
+  )
 }

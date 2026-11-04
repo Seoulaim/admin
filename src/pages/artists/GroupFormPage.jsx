@@ -194,6 +194,7 @@ function GroupForm({ initial, links }) {
               aspect={PHOTO_ASPECT}
               sizeClass="w-36"
               compact
+              uploadDomain="ARTIST"
             />
           </Field>
           <div className="flex min-w-0 flex-1 flex-col gap-6">
