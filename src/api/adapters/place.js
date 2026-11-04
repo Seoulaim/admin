@@ -1,4 +1,3 @@
-import { ApiError } from '../../lib/apiClient.js'
 import { DAYS } from '../../lib/places.js'
 import { imageUrlFromKey, keyForUrl } from './image.js'
 
@@ -20,7 +19,8 @@ import { imageUrlFromKey, keyForUrl } from './image.js'
 //   전원으로 펼친다. 쓸 때 원래 그룹 단위였던 그룹의 멤버가 모두 남아
 //   있으면 그룹 단위로 되돌리고, description 은 이어받는다.
 // - keywordIds ↔ keywordCodes (키워드 id = code).
-// - hours ↔ openingHours: 브레이크는 하루 1개, '24:00' 은 '23:59' 로.
+// - hours ↔ openingHours: hoursToApi 위 규칙 참고. 휴무는 closed, 브레이크는
+//   앞 1개, 24:00·자정 넘김은 23:59 마감으로 잘라낸다(콘솔 경고).
 // - naverMapUrl·videoUrls: 백엔드에 없음 → ''·[] (쓸 때 버림).
 // - avgStayMinutes·operatingPeriod: 화면에 없음 → 기존 값 유지(새 장소는
 //   백엔드 기본: 60분, 상시 운영).
@@ -103,29 +103,70 @@ export function placeFromApi(raw, groups) {
 
 // ---------- 쓰기 ----------
 
-function hoursToApi(hours) {
-  if (!hours) return null
-  return DAYS.map((day, i) => {
-    const value = hours[day.id]
-    if (!value) {
-      return { dayOfWeek: WEEKDAYS[i], closed: true }
-    }
-    if (value.breaks.length > 1) {
-      // 백엔드는 브레이크를 하루 1개만 저장한다.
-      throw new ApiError('PLACE_INVALID_OPENING_HOURS', {
-        details: { [day.id]: 'breaks' },
-      })
-    }
-    const [pause] = value.breaks
+// 백엔드 검증 (AdminPlaceService.isValidOpeningHours, develop 기준):
+// - openingHours null = 영업시간 없음. 있으면 MON~SUN 정확히 7개, 요일 중복 X
+// - 휴무: closed true + 시각 4개 모두 null
+// - 영업: opensAt·closesAt 필수, opensAt < closesAt (자정 넘김·같은 시각 X)
+// - 브레이크: 하루 최대 1개, 시작·끝 둘 다 있거나 둘 다 없음,
+//   opensAt < 시작 < 끝 < closesAt (경계와 같으면 X)
+// - 시각 형식 'HH:mm' (LocalTime 이라 24:00 없음)
+const MAX_BREAKS = 1
+const hhmm = (time) => (time ?? '').slice(0, 5)
+
+function dayToApi(dayOfWeek, value, label) {
+  if (!value) {
     return {
-      dayOfWeek: WEEKDAYS[i],
-      closed: false,
-      opensAt: value.open,
-      closesAt: value.close === '24:00' ? END_OF_DAY : value.close,
-      breakStartsAt: pause?.start ?? null,
-      breakEndsAt: pause?.end ?? null,
+      dayOfWeek,
+      closed: true,
+      opensAt: null,
+      closesAt: null,
+      breakStartsAt: null,
+      breakEndsAt: null,
     }
-  })
+  }
+  const opensAt = hhmm(value.open)
+  let closesAt = hhmm(value.close)
+  // 24:00, 00:00(자정 마감), 자정 넘김(close <= open) → 23:59 로 잘라낸다.
+  if (closesAt === '24:00' || closesAt <= opensAt) {
+    if (closesAt !== '24:00') {
+      console.warn(
+        `[place hours] ${label} ${opensAt}~${closesAt}: 백엔드가 자정 넘김을 받지 않아 ${END_OF_DAY} 마감으로 저장`,
+      )
+    }
+    closesAt = END_OF_DAY
+  }
+  const breaks = value.breaks ?? []
+  if (breaks.length > MAX_BREAKS) {
+    console.warn(
+      `[place hours] ${label} 브레이크 ${breaks.length}개 중 앞 ${MAX_BREAKS}개만 저장`,
+    )
+  }
+  let pause = breaks[0] ?? null
+  if (pause) {
+    const start = hhmm(pause.start)
+    const end = hhmm(pause.end)
+    if (opensAt < start && start < end && end < closesAt) {
+      pause = { start, end }
+    } else {
+      console.warn(
+        `[place hours] ${label} 브레이크 ${start}~${end} 가 영업시간 ${opensAt}~${closesAt} 밖이라 저장하지 않음`,
+      )
+      pause = null
+    }
+  }
+  return {
+    dayOfWeek,
+    closed: false,
+    opensAt,
+    closesAt,
+    breakStartsAt: pause?.start ?? null,
+    breakEndsAt: pause?.end ?? null,
+  }
+}
+
+export function hoursToApi(hours) {
+  if (!hours) return null
+  return DAYS.map((day, i) => dayToApi(WEEKDAYS[i], hours[day.id], day.label))
 }
 
 // 기존 값(current)과 다른 칸을 고른다: ko 우선, 그다음 en.
