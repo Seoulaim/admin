@@ -20,7 +20,7 @@ import { imageUrlFromKey, keyForUrl } from './image.js'
 //   있으면 그룹 단위로 되돌리고, description 은 이어받는다.
 // - keywordIds ↔ keywordCodes (키워드 id = code).
 // - hours ↔ openingHours: hoursToApi 위 규칙 참고. 휴무는 closed, 브레이크는
-//   앞 1개, 24:00·자정 넘김은 23:59 마감으로 잘라낸다(콘솔 경고).
+//   앞 1개, 자정 넘김·00:00 은 그대로, 24:00 만 00:00 으로.
 // - naverMapUrl·videoUrls: 백엔드에 없음 → ''·[] (쓸 때 버림).
 // - avgStayMinutes·operatingPeriod: 화면에 없음 → 기존 값 유지(새 장소는
 //   백엔드 기본: 60분, 상시 운영).
@@ -36,7 +36,8 @@ const CATEGORY_TOPICS = {
 }
 
 const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
-const END_OF_DAY = '23:59' // LocalTime 에 24:00 이 없다
+const MIDNIGHT = '00:00' // 24:00 은 백엔드에서 00:00 (다음 날 자정 마감)
+const MINUTES_PER_DAY = 24 * 60
 
 const both = (text) => ({ en: text ?? '', ko: text ?? '', zh: '', ja: '' })
 
@@ -106,12 +107,29 @@ export function placeFromApi(raw, groups) {
 // 백엔드 검증 (AdminPlaceService.isValidOpeningHours, develop 기준):
 // - openingHours null = 영업시간 없음. 있으면 MON~SUN 정확히 7개, 요일 중복 X
 // - 휴무: closed true + 시각 4개 모두 null
-// - 영업: opensAt·closesAt 필수, opensAt < closesAt (자정 넘김·같은 시각 X)
-// - 브레이크: 하루 최대 1개, 시작·끝 둘 다 있거나 둘 다 없음,
-//   opensAt < 시작 < 끝 < closesAt (경계와 같으면 X)
-// - 시각 형식 'HH:mm' (LocalTime 이라 24:00 없음)
+// - 영업: opensAt·closesAt 필수. closesAt ≤ opensAt 이면 다음 날 closesAt 까지
+//   (자정 넘김), 같으면 24시간. 24:00 = 00:00
+// - 브레이크: 하루 최대 1개, 시작·끝 둘 다 있거나 둘 다 없음, 여는 시각부터
+//   지난 분으로 0 < 시작 < 끝 < 영업 길이 (자정을 걸쳐도 구간 안이면 OK)
+// - 시각 형식 'HH:mm'
 const MAX_BREAKS = 1
 const hhmm = (time) => (time ?? '').slice(0, 5)
+const minuteOf = (time) => {
+  const [h, m] = time.split(':').map(Number)
+  return h * 60 + m
+}
+// 여는 시각부터 time 까지 지난 분 (자정을 넘기면 다음 날로).
+const offset = (opensAt, time) =>
+  (((minuteOf(time) - minuteOf(opensAt)) % MINUTES_PER_DAY) + MINUTES_PER_DAY) %
+  MINUTES_PER_DAY
+
+// 백엔드 OpeningHours.isValid 와 같은 브레이크 범위 검사.
+function breakInside(opensAt, closesAt, start, end) {
+  const length = offset(opensAt, closesAt) || MINUTES_PER_DAY
+  const s = offset(opensAt, start)
+  const e = offset(opensAt, end)
+  return 0 < s && s < e && e < length
+}
 
 function dayToApi(dayOfWeek, value, label) {
   if (!value) {
@@ -125,16 +143,9 @@ function dayToApi(dayOfWeek, value, label) {
     }
   }
   const opensAt = hhmm(value.open)
-  let closesAt = hhmm(value.close)
-  // 24:00, 00:00(자정 마감), 자정 넘김(close <= open) → 23:59 로 잘라낸다.
-  if (closesAt === '24:00' || closesAt <= opensAt) {
-    if (closesAt !== '24:00') {
-      console.warn(
-        `[place hours] ${label} ${opensAt}~${closesAt}: 백엔드가 자정 넘김을 받지 않아 ${END_OF_DAY} 마감으로 저장`,
-      )
-    }
-    closesAt = END_OF_DAY
-  }
+  // 자정 넘김(close <= open)·00:00 은 그대로, 24:00 만 00:00 으로.
+  const close = hhmm(value.close)
+  const closesAt = close === '24:00' ? MIDNIGHT : close
   const breaks = value.breaks ?? []
   if (breaks.length > MAX_BREAKS) {
     console.warn(
@@ -143,9 +154,9 @@ function dayToApi(dayOfWeek, value, label) {
   }
   let pause = breaks[0] ?? null
   if (pause) {
-    const start = hhmm(pause.start)
-    const end = hhmm(pause.end)
-    if (opensAt < start && start < end && end < closesAt) {
+    const start = hhmm(pause.start) === '24:00' ? MIDNIGHT : hhmm(pause.start)
+    const end = hhmm(pause.end) === '24:00' ? MIDNIGHT : hhmm(pause.end)
+    if (start && end && breakInside(opensAt, closesAt, start, end)) {
       pause = { start, end }
     } else {
       console.warn(
