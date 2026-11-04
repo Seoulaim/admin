@@ -5,7 +5,8 @@ import { moveItem } from '../../lib/arrays.js'
 
 // Up to `max` photos, uploaded when picked (several at once is fine). Drag
 // to reorder; the first one is the main photo.
-function PhotoListInput({ value, onChange, max, aspect }) {
+// uploadDomain: 백엔드 업로드 domain (api/uploads.js), 없으면 기본값.
+function PhotoListInput({ value, onChange, max, aspect, uploadDomain }) {
   const inputRef = useRef(null)
   const [uploading, setUploading] = useState(0)
   const [failed, setFailed] = useState(false)
@@ -19,7 +20,9 @@ function PhotoListInput({ value, onChange, max, aspect }) {
     if (picked.length === 0) return
     setFailed(false)
     setUploading((n) => n + picked.length)
-    const results = await Promise.allSettled(picked.map(uploadImage))
+    const results = await Promise.allSettled(
+      picked.map((file) => uploadImage(file, { domain: uploadDomain })),
+    )
     setUploading((n) => n - picked.length)
     const urls = results
       .filter((r) => r.status === 'fulfilled')
