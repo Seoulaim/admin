@@ -2,6 +2,7 @@ import { loadNaverGeocoder } from '../lib/naverMaps.js'
 import { ApiError } from '../lib/apiClient.js'
 import {
   keywordFromApi,
+  keywordToApi,
   placeDetailToApi,
   placeFromApi,
   placeToApi,
@@ -32,8 +33,8 @@ import { request } from './client.js'
 // 백엔드 목록은 요약 + 커서 페이징이라, 화면이 쓰는 전체 필드를 위해 모든
 // 페이지를 받은 뒤 상세를 동시 DETAIL_CONCURRENCY 개씩 조회한다.
 // 등록·수정은 전체 교체(PUT) — 화면에 없는 필드는 기존 값을 이어 보낸다.
-// 백엔드에 없는 것: topic, naverMapUrl, videoUrls, 다국어 이름·주소,
-// 하루 2개 이상의 브레이크.
+// 이름·주제(summary)·주소는 4개 언어 1:1, videoUrls ↔ referenceLinks.
+// 백엔드에 없는 것: 하루 2개 이상의 브레이크.
 
 const PLACES = '/api/v1/admin/places'
 const PAGE_SIZE = 50 // 백엔드 최대
@@ -151,39 +152,71 @@ export async function geocodeAddress(address) {
 }
 
 // --- Keywords (HC05) ---
-// 백엔드에 어드민 키워드 API 가 없다: 읽기만 공개 API GET /api/v1/keywords
-// (KeywordResponse { id, code, displayOrder }) 로 하고, 추가·수정·삭제·
-// 순서 변경은 'NOT_SUPPORTED'. 키워드 id = code (장소의 keywordCodes).
-// placeCount: 백엔드에 없음 → 0.
-// GET /api/v1/keywords 는 아직 회원 로그인(JWT)이 필요해 어드민 키로는
-// 401 이 온다. 그때는 장소 화면이 계속 열리도록 빈 목록을 준다 (장소에
-// 붙은 키워드 코드는 그대로 유지·저장됨).
+// 백엔드 /api/v1/admin/keywords (AdminKeywordController, develop PR #53).
+// 화면의 키워드 id 는 code (장소의 keywordCodes 와 같음). 수정·삭제·순서
+// 변경은 백엔드가 UUID 를 받으므로 마지막으로 받은 목록의 code → UUID 로
+// 바꿔 보낸다 (모르는 code 면 목록을 다시 받아 찾는다).
+// - 추가: code 는 백엔드가 영어 이름으로 만든다. 같은 code 가 있으면 409
+//   'PLACE_KEYWORD_DUPLICATED', 영어 이름에 영문·숫자가 없으면
+//   'PLACE_KEYWORD_INVALID_CODE' 로 reject.
+// - 삭제: 장소 연결도 함께 삭제된다.
+// - 순서 변경: 전체 id 를 순서대로 (빠지면 'PLACE_KEYWORD_INVALID_ORDER').
 
-const KEYWORDS = '/api/v1/keywords'
+const KEYWORDS = '/api/v1/admin/keywords'
 
-// [{ ...keyword, placeCount }] in the HC05 order.
-export async function getKeywords() {
-  let raw
-  try {
-    raw = await request(KEYWORDS, { admin: false })
-  } catch (error) {
-    if (error.status === 401 || error.status === 403) {
-      console.warn(
-        '[keywords] GET /api/v1/keywords 가 로그인을 요구함 (백엔드 공개 경로 필요)',
-      )
-      return []
-    }
-    throw error
-  }
-  return [...raw]
-    .sort((a, b) => a.displayOrder - b.displayOrder)
-    .map(keywordFromApi)
+const keywordUuids = new Map() // code → UUID
+
+function rememberKeywords(items) {
+  keywordUuids.clear()
+  for (const item of items) keywordUuids.set(item.code, item.id)
+  return items.map(keywordFromApi)
 }
 
-const notSupported = () => Promise.reject(new ApiError('NOT_SUPPORTED'))
+async function keywordUuid(code) {
+  if (!keywordUuids.has(code)) rememberKeywords((await request(KEYWORDS)).items)
+  const uuid = keywordUuids.get(code)
+  if (!uuid) throw new ApiError('PLACE_KEYWORD_NOT_FOUND')
+  return uuid
+}
 
-// fields: { name }. 백엔드에 없음.
-export const createKeyword = notSupported
-export const updateKeyword = notSupported
-export const deleteKeyword = notSupported
-export const reorderKeywords = notSupported
+// [{ ...keyword, placeCount }] in the HC05 order (백엔드 displayOrder 순).
+export async function getKeywords() {
+  const { items } = await request(KEYWORDS)
+  return rememberKeywords(items)
+}
+
+// fields: { name }. Added last.
+export async function createKeyword(fields) {
+  const created = await request(KEYWORDS, {
+    method: 'POST',
+    body: keywordToApi(fields),
+  })
+  keywordUuids.set(created.code, created.id)
+  return keywordFromApi(created)
+}
+
+// fields: { name }. code(= id) 는 바뀌지 않는다.
+export async function updateKeyword(id, fields) {
+  const updated = await request(`${KEYWORDS}/${await keywordUuid(id)}`, {
+    method: 'PUT',
+    body: keywordToApi(fields),
+  })
+  return keywordFromApi(updated)
+}
+
+// Also takes it off every place.
+export async function deleteKeyword(id) {
+  await request(`${KEYWORDS}/${await keywordUuid(id)}`, { method: 'DELETE' })
+  keywordUuids.delete(id)
+}
+
+// ids: every keyword id in the new order.
+export async function reorderKeywords(ids) {
+  const keywordIds = []
+  for (const id of ids) keywordIds.push(await keywordUuid(id))
+  const { items } = await request(`${KEYWORDS}/order`, {
+    method: 'PUT',
+    body: { keywordIds },
+  })
+  rememberKeywords(items)
+}
