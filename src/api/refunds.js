@@ -1,6 +1,7 @@
-import { checkRefundPolicy, processingDeadline } from '../lib/refunds.js'
-import { admin, inquiries, payments } from '../mocks/db.js'
-import { ApiError, handle } from '../mocks/server.js'
+import { ApiError } from '../lib/apiClient.js'
+import { inquiryErrorCode } from './adapters/inquiry.js'
+import { refundRequestFromApi } from './adapters/refund.js'
+import { request } from './client.js'
 
 // 환불 관리: refund requests — Help Center inquiries of the refund type,
 // each naming the payment the member picked (MR03). Refunds only start
@@ -26,80 +27,52 @@ import { ApiError, handle } from '../mocks/server.js'
 // policy is only accepted with an exception (reason + memo), kept for
 // accounting and disputes.
 
-function view(inquiry) {
-  const payment = payments.find((p) => p.id === inquiry.paymentId)
-  return {
-    id: inquiry.id,
-    author: inquiry.author,
-    language: inquiry.language,
-    title: inquiry.title,
-    content: inquiry.content,
-    photoUrls: inquiry.photoUrls,
-    createdAt: inquiry.createdAt,
-    refund: inquiry.refund,
-    payment,
-    policy: checkRefundPolicy(payment, inquiry.createdAt),
-    refundWithinPolicy: inquiry.refundWithinPolicy,
-    deadline: processingDeadline(inquiry.createdAt),
-  }
-}
+// 백엔드: /api/v1/admin/refund-requests (domain/inquiry/admin,
+// docs/inquiry-flow.md). 형태 변환은 adapters/refund.js.
+// refundWithinPolicy·deadline 은 백엔드 값, policy 만 화면 표시용으로 계산.
 
-function find(id) {
-  const inquiry = inquiries.find((i) => i.id === id && i.category === 'refund')
-  if (!inquiry) throw new ApiError('NOT_FOUND')
-  return inquiry
+const BASE = '/api/v1/admin/refund-requests'
+
+async function call(path, options) {
+  try {
+    return await request(path, options)
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new ApiError(inquiryErrorCode(error.code), {
+        status: error.status,
+        details: error.details,
+      })
+    }
+    throw error
+  }
 }
 
 // Waiting ones first (oldest first — closest deadline), then decided ones,
-// newest first.
-export function getRefundRequests() {
-  return handle(() => {
-    const all = inquiries.filter((i) => i.category === 'refund').map(view)
-    const waiting = all
-      .filter((r) => r.refund.status === 'requested')
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    const decided = all
-      .filter((r) => r.refund.status !== 'requested')
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    return [...waiting, ...decided]
-  })
+// newest first. (백엔드가 이 순서로 준다.)
+export async function getRefundRequests() {
+  return ((await call(BASE)) ?? []).map(refundRequestFromApi)
 }
 
-export function getRefundRequest(id) {
-  return handle(() => view(find(id)))
-}
-
-function decide(id, fields) {
-  const inquiry = find(id)
-  if (inquiry.refund.status !== 'requested')
-    throw new ApiError('ALREADY_DECIDED')
-  inquiry.refund = {
-    ...inquiry.refund,
-    ...fields,
-    decidedAt: new Date().toISOString(),
-    adminName: admin.name,
-  }
-  inquiry.status = 'answered'
-  return view(inquiry)
+export async function getRefundRequest(id) {
+  return refundRequestFromApi(await call(`${BASE}/${id}`))
 }
 
 // exception: { reason, memo } — required when the request is outside the
 // policy ('POLICY_EXCEPTION_REQUIRED' otherwise). Rejects with
-// 'ALREADY_DECIDED', or 'REFUND_FAILED' when Toss refuses the cancel.
-export function approveRefund(id, exception = null) {
-  return handle(() => {
-    const inquiry = find(id)
-    if (!inquiry.refundWithinPolicy && !exception) {
-      throw new ApiError('POLICY_EXCEPTION_REQUIRED')
-    }
-    return decide(id, { status: 'refunded', exception })
-  }, 900)
+// 'ALREADY_DECIDED', or 'REFUND_FAILED' when Toss refuses the cancel —
+// error.details: { code, message } from Toss (백엔드 fields).
+export async function approveRefund(id, exception = null) {
+  return refundRequestFromApi(
+    await call(`${BASE}/${id}/approve`, {
+      method: 'POST',
+      body: exception ? { exception } : {},
+    }),
+  )
 }
 
 // reason: emailed to the member.
-export function rejectRefund(id, reason) {
-  return handle(
-    () => decide(id, { status: 'rejected', rejectReason: reason }),
-    600,
+export async function rejectRefund(id, reason) {
+  return refundRequestFromApi(
+    await call(`${BASE}/${id}/reject`, { method: 'POST', body: { reason } }),
   )
 }
