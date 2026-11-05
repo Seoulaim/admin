@@ -68,10 +68,18 @@ function RefundDetail({ request, onChange, onToast }) {
       setDialog(null)
       onToast('환불했어요. 회원에게 메일이 가요.')
     } catch (e) {
+      // REFUND_FAILED: details = 토스의 { code, message } (백엔드 fields).
+      const toss = e.details?.message
+        ? ` (토스: ${e.details.message}${e.details.code ? ` · ${e.details.code}` : ''})`
+        : ''
       setError(
         e.code === 'REFUND_FAILED'
-          ? '토스페이먼츠에서 취소하지 못했어요. 잠시 뒤 다시 시도해 주세요.'
-          : '환불하지 못했어요. 다시 시도해 주세요.',
+          ? `토스페이먼츠에서 취소하지 못했어요. 잠시 뒤 다시 시도해 주세요.${toss}`
+          : e.code === 'ALREADY_DECIDED'
+            ? '이미 처리된 요청이에요. 새로고침해 주세요.'
+            : e.code === 'POLICY_EXCEPTION_REQUIRED'
+              ? '정책 밖 요청이라 예외 사유가 필요해요.'
+              : '환불하지 못했어요. 다시 시도해 주세요.',
       )
     } finally {
       setBusy(false)
