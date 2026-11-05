@@ -1,5 +1,6 @@
-import { admin, inquiries } from '../mocks/db.js'
-import { ApiError, handle } from '../mocks/server.js'
+import { ApiError } from '../lib/apiClient.js'
+import { inquiryErrorCode, inquiryFromApi } from './adapters/inquiry.js'
+import { request } from './client.js'
 
 // Help Center inquiries (MR03) other than refunds — those are handled in
 // 환불 관리 (api/refunds.js).
@@ -11,49 +12,55 @@ import { ApiError, handle } from '../mocks/server.js'
 //   member (the backend sends it; mail is the only channel, no push).
 // - memo: an admin-only note, never sent.
 
-const isRefund = (inquiry) => inquiry.category === 'refund'
+// 백엔드: /api/v1/admin/inquiries (domain/inquiry/admin, docs/inquiry-flow.md).
+// 형태 변환은 adapters/inquiry.js.
 
-function find(id) {
-  const inquiry = inquiries.find((i) => i.id === id && !isRefund(i))
-  if (!inquiry) throw new ApiError('NOT_FOUND')
-  return inquiry
+async function call(path, options) {
+  try {
+    return await request(path, options)
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new ApiError(inquiryErrorCode(error.code), {
+        status: error.status,
+        details: error.details,
+      })
+    }
+    throw error
+  }
 }
 
 // Newest first, with refundCount: refund inquiries waiting in 환불 관리.
-export function getInquiries() {
-  return handle(() => ({
-    inquiries: inquiries
-      .filter((i) => !isRefund(i))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    refundCount: inquiries.filter(
-      (i) => isRefund(i) && i.refund.status === 'requested',
-    ).length,
-  }))
+export async function getInquiries() {
+  const data = await call('/api/v1/admin/inquiries')
+  return {
+    inquiries: (data?.inquiries ?? []).map(inquiryFromApi),
+    refundCount: Number(data?.refundCount ?? 0),
+  }
 }
 
 // Rejects with 'NOT_FOUND'.
-export function getInquiry(id) {
-  return handle(() => find(id))
+export async function getInquiry(id) {
+  return inquiryFromApi(await call(`/api/v1/admin/inquiries/${id}`))
 }
 
 // Emails `body` to the member and marks the inquiry answered. Resolves with
 // the updated inquiry.
-export function answerInquiry(id, body) {
-  return handle(() => {
-    const inquiry = find(id)
-    inquiry.answers.push({
-      id: `an-${Date.now()}`,
-      body,
-      sentAt: new Date().toISOString(),
-      adminName: admin.name,
-    })
-    inquiry.status = 'answered'
-    return inquiry
-  }, 600)
+export async function answerInquiry(id, body) {
+  return inquiryFromApi(
+    await call(`/api/v1/admin/inquiries/${id}/answers`, {
+      method: 'POST',
+      body: { body },
+    }),
+  )
 }
 
-export function saveInquiryMemo(id, memo) {
-  return handle(() => {
-    find(id).memo = memo
-  })
+// Resolves with the updated inquiry (the mock resolved with nothing; the
+// screen doesn't use it).
+export async function saveInquiryMemo(id, memo) {
+  return inquiryFromApi(
+    await call(`/api/v1/admin/inquiries/${id}/memo`, {
+      method: 'PUT',
+      body: { memo },
+    }),
+  )
 }
