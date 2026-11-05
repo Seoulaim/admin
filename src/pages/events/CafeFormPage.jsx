@@ -193,6 +193,7 @@ function CafeForm({ initial, groups }) {
             value={form.imageUrl}
             onChange={set('imageUrl')}
             aspect={CAFE_IMAGE}
+            uploadDomain="CONTENT"
             invalid={Boolean(errors.imageUrl)}
             sizeClass="w-full max-w-xs"
           />

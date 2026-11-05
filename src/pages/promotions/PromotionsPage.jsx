@@ -4,6 +4,7 @@ import {
   deletePromotion,
   getPromotions,
   reorderPromotions,
+  setDefaultPromotion,
   setPromotionEnabled,
 } from '../../api/promotions.js'
 import Button from '../../components/Button.jsx'
@@ -37,6 +38,8 @@ function PromotionsPage() {
   const [savingOrder, setSavingOrder] = useState(false)
   const [deleting, setDeleting] = useState(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
+  const [defaulting, setDefaulting] = useState(null)
+  const [defaultBusy, setDefaultBusy] = useState(false)
 
   function selectTab(id) {
     setSearchParams(id ? { tab: id } : {}, { replace: true })
@@ -67,6 +70,23 @@ function PromotionsPage() {
     } finally {
       setDeleteBusy(false)
       setDeleting(null)
+    }
+  }
+
+  // The server answers with that placement's list. On a placement tab it
+  // replaces the list; on 전체 (other placement mixed in) reload instead.
+  async function confirmDefault() {
+    setDefaultBusy(true)
+    try {
+      const list = await setDefaultPromotion(defaulting.id)
+      if (placement) update(() => list)
+      else reload()
+      showToast('기본 배너를 바꿨어요.')
+    } catch {
+      showToast('기본 배너를 바꾸지 못했어요. 다시 시도해 주세요.')
+    } finally {
+      setDefaultBusy(false)
+      setDefaulting(null)
     }
   }
 
@@ -179,6 +199,7 @@ function PromotionsPage() {
                   }
                   onToggle={(enabled) => toggle(promotion, enabled)}
                   onDelete={() => setDeleting(promotion)}
+                  onMakeDefault={() => setDefaulting(promotion)}
                 />
               ))}
             </ol>
@@ -198,6 +219,18 @@ function PromotionsPage() {
         busy={deleteBusy}
         onConfirm={confirmDelete}
         onCancel={() => setDeleting(null)}
+      />
+      <ConfirmDialog
+        open={Boolean(defaulting)}
+        title="이 배너를 기본 배너로 바꿀까요?"
+        message={
+          defaulting &&
+          `'${defaulting.adminTitle}' — 기본 배너는 항상 켜지고 기간이 없어져요. 지금 기본 배너는 켜진 일반 배너로 남아요.`
+        }
+        confirmLabel="기본으로 설정"
+        busy={defaultBusy}
+        onConfirm={confirmDefault}
+        onCancel={() => setDefaulting(null)}
       />
       <Toast toast={toast} />
     </>

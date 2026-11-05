@@ -247,6 +247,7 @@ function EntryForm({ initial, groups }) {
                 value={form.imageUrl}
                 onChange={set('imageUrl')}
                 aspect={EVENT_IMAGE}
+                uploadDomain="CONTENT"
                 sizeClass="w-full max-w-40"
               />
               {form.imageUrl && (
@@ -307,6 +308,7 @@ function EntryForm({ initial, groups }) {
                 value={form.imageUrl}
                 onChange={set('imageUrl')}
                 aspect={EVENT_IMAGE}
+                uploadDomain="CONTENT"
                 invalid={Boolean(errors.imageUrl)}
                 sizeClass="w-full max-w-40"
               />

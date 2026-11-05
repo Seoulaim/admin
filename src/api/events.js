@@ -1,5 +1,11 @@
-import { birthdayCafes, calendarEntries } from '../mocks/db.js'
-import { ApiError, handle } from '../mocks/server.js'
+import {
+  cafeFromApi,
+  cafeToApi,
+  entryFromApi,
+  entryToApi,
+  withContentErrors,
+} from './adapters/content.js'
+import { request } from './client.js'
 
 // 이벤트 관리: HH01 "Event coming up", fan calendar and "Birthday cafe".
 //
@@ -29,41 +35,38 @@ import { ApiError, handle } from '../mocks/server.js'
 // - Fan calendar: no fallback, only inCalendar entries with a bias group or
 //   'all', even when that leaves it empty.
 
-function collection(items, prefix) {
-  const find = (id) => {
-    const item = items.find((i) => i.id === id)
-    if (!item) throw new ApiError('NOT_FOUND')
-    return item
-  }
+// ── 실제 백엔드 (adapters/content.js) ──
+// /api/v1/admin/calendar-entries, /api/v1/admin/birthday-cafes.
+// 새 항목은 백엔드가 맨 뒤 순서로 붙인다. 없으면 'NOT_FOUND' 로 reject.
+// 그룹·멤버 선택은 api/artists.js (백엔드) 의 id 를 그대로 쓴다.
+
+function collection(path, fromApi, toApi) {
+  const call = (suffix = '', options) =>
+    withContentErrors(request(`${path}${suffix}`, options))
   return {
-    list: () => handle(() => items),
-    get: (id) => handle(() => find(id)),
-    create: (fields) =>
-      handle(() => {
-        const item = {
-          ...fields,
-          id: `${prefix}-${Date.now()}`,
-          createdAt: new Date().toISOString(),
-        }
-        items.push(item)
-        return item
-      }),
-    update: (id, fields) =>
-      handle(() => {
-        const item = find(id)
-        const updated = { ...fields, id, createdAt: item.createdAt }
-        items[items.indexOf(item)] = updated
-        return updated
-      }),
-    remove: (id) =>
-      handle(() => {
-        items.splice(items.indexOf(find(id)), 1)
-      }),
+    list: async () => ((await call()) ?? []).map(fromApi),
+    get: async (id) => fromApi(await call(`/${id}`)),
+    create: async (fields) =>
+      fromApi(await call('', { method: 'POST', body: toApi(fields) })),
+    update: async (id, fields) =>
+      fromApi(
+        await call(`/${id}`, {
+          method: 'PUT',
+          body: toApi(fields, { editing: true }),
+        }),
+      ),
+    remove: async (id) => {
+      await call(`/${id}`, { method: 'DELETE' })
+    },
   }
 }
 
-const entries = collection(calendarEntries, 'ce')
-const cafes = collection(birthdayCafes, 'bc')
+const entries = collection(
+  '/api/v1/admin/calendar-entries',
+  entryFromApi,
+  entryToApi,
+)
+const cafes = collection('/api/v1/admin/birthday-cafes', cafeFromApi, cafeToApi)
 
 export const getCalendarEntries = entries.list
 export const getCalendarEntry = entries.get
