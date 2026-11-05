@@ -29,6 +29,15 @@ function Chip({ className, children }) {
   )
 }
 
+// Either end can be open (null), e.g. a banner that was the default before
+// another one took over keeps no period.
+function periodLabel({ startDate, endDate }) {
+  if (!startDate && !endDate) return '기간 없음 · 켜져 있으면 항상 게시'
+  const start = startDate ? formatShortDate(startDate) : ''
+  const end = endDate ? formatShortDate(endDate) : ''
+  return `${start} ~ ${end}`.trim()
+}
+
 // One promotion. ordering (while reordering): { index, count, move(to),
 // drag (useDragSort's row props) } — the row drags and shows up/down
 // buttons instead of the switch and edit/delete.
@@ -38,11 +47,12 @@ function PromotionRow({
   ordering,
   onToggle,
   onDelete,
+  onMakeDefault,
 }) {
   const status = promotionStatus(promotion)
   const period = promotion.isDefault
     ? '기본 배너 · 기간 없이 항상 게시'
-    : `${formatShortDate(promotion.startDate)} ~ ${formatShortDate(promotion.endDate)}`
+    : periodLabel(promotion)
 
   return (
     <li
@@ -109,6 +119,17 @@ function PromotionRow({
             />
           </span>
           <div className="flex gap-2">
+            {/* The default row keeps the button's room so the chips line up. */}
+            <Button
+              size="sm"
+              onClick={onMakeDefault}
+              aria-hidden={promotion.isDefault || undefined}
+              tabIndex={promotion.isDefault ? -1 : undefined}
+              disabled={promotion.isDefault}
+              className={promotion.isDefault ? 'invisible' : ''}
+            >
+              기본으로 설정
+            </Button>
             <Link
               to={`/promotions/${promotion.id}/edit`}
               className={buttonClass('outline', 'sm')}

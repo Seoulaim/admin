@@ -88,7 +88,15 @@ function PromotionFormPage() {
         ) : (
           <PromotionForm
             key={promotionId ?? 'new'}
-            initial={data ?? emptyPromotion(placement)}
+            initial={
+              data
+                ? {
+                    ...data,
+                    startDate: data.startDate ?? '',
+                    endDate: data.endDate ?? '',
+                  }
+                : emptyPromotion(placement)
+            }
           />
         )}
       </main>
@@ -124,6 +132,7 @@ function PromotionForm({ initial }) {
       targetUrl: form.targetType === 'URL' ? form.targetUrl.trim() : '',
       startDate: form.isDefault ? null : form.startDate,
       endDate: form.isDefault ? null : form.endDate,
+      ...(!editing && { isDefault: form.isDefault }),
     }
     setSaving(true)
     setSaveFailed(false)
@@ -256,12 +265,24 @@ function PromotionForm({ initial }) {
             )}
           </Field>
 
+          {!editing && (
+            <label className="-mb-3 flex w-fit cursor-pointer items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={form.isDefault}
+                onChange={(event) => set('isDefault')(event.target.checked)}
+                className="size-4 accent-point-strong"
+              />
+              이 배너를 기본 배너로 설정
+            </label>
+          )}
+
           <Field
             label="게시 기간"
             required={!form.isDefault}
-            error={errors.period}
+            error={form.isDefault ? undefined : errors.period}
           >
-            {form.isDefault ? (
+            {editing && form.isDefault ? (
               <p className="text-sm text-muted">
                 기본 배너는 기간 없이 항상 게시돼요.
               </p>
@@ -272,6 +293,7 @@ function PromotionForm({ initial }) {
                     type="date"
                     aria-label="게시 시작일"
                     value={form.startDate}
+                    disabled={form.isDefault}
                     onChange={(event) => set('startDate')(event.target.value)}
                     aria-invalid={Boolean(errors.period)}
                     className={`${inputClass} h-10 max-w-44`}
@@ -281,17 +303,25 @@ function PromotionForm({ initial }) {
                     type="date"
                     aria-label="게시 종료일"
                     value={form.endDate}
+                    disabled={form.isDefault}
                     min={form.startDate}
                     onChange={(event) => set('endDate')(event.target.value)}
                     aria-invalid={Boolean(errors.period)}
                     className={`${inputClass} h-10 max-w-44`}
                   />
                 </div>
-                {!errors.period && (
+                {form.isDefault ? (
                   <p className="text-xs text-sub">
-                    한국 시간 기준, 종료일 23:59까지 게시되고 그 뒤에는 자동으로
-                    내려가요.
+                    기본 배너는 기간 없이 항상 게시돼요. 지금 기본 배너는 켜진
+                    일반 배너로 남아요.
                   </p>
+                ) : (
+                  !errors.period && (
+                    <p className="text-xs text-sub">
+                      한국 시간 기준, 종료일 23:59까지 게시되고 그 뒤에는
+                      자동으로 내려가요.
+                    </p>
+                  )
                 )}
               </>
             )}

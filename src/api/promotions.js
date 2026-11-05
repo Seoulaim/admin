@@ -36,12 +36,15 @@ export async function getPromotion(id) {
   return promotionFromApi(await call(`/${id}`))
 }
 
-// fields: the Promotion fields above except id, enabled, isDefault and
-// createdAt. Added last in its placement, turned on.
+// fields: the Promotion fields above except id, enabled and createdAt.
+// Added last in its placement, turned on. isDefault true (optional): created
+// as the placement's default banner (as setDefaultPromotion; no period).
 export async function createPromotion(fields) {
-  return promotionFromApi(
-    await call('', { method: 'POST', body: promotionToApi(fields) }),
-  )
+  const body = promotionToApi(fields)
+  if (fields.isDefault) {
+    Object.assign(body, { isDefault: true, startDate: null, endDate: null })
+  }
+  return promotionFromApi(await call('', { method: 'POST', body }))
 }
 
 // fields: as createPromotion; the placement can't change. The default
@@ -59,6 +62,15 @@ export async function updatePromotion(id, fields) {
 // default banner (always on).
 export async function setPromotionEnabled(id, enabled) {
   await call(`/${id}/enabled`, { method: 'PATCH', body: { enabled } })
+}
+
+// Makes the promotion its placement's default banner: always on, no period.
+// The previous default stays on as an ordinary banner (no period), so it can
+// then be turned off or deleted. Resolves with that placement's promotions
+// in the admin order. Rejects with 'NOT_FOUND'.
+export async function setDefaultPromotion(id) {
+  const list = await call(`/${id}/default`, { method: 'PATCH' })
+  return (list ?? []).map(promotionFromApi)
 }
 
 // Rejects with 'DEFAULT_PROMOTION' for the default banner.

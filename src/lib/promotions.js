@@ -19,9 +19,10 @@ export const BANNER_HEIGHT = 197
 // include the end date (through 23:59).
 export function promotionStatus(promotion, today = todayKey()) {
   if (promotion.isDefault) return 'always'
-  if (promotion.endDate < today) return 'ended'
+  // Either end may be null (open), e.g. a former default banner.
+  if (promotion.endDate && promotion.endDate < today) return 'ended'
   if (!promotion.enabled) return 'off'
-  if (promotion.startDate > today) return 'scheduled'
+  if (promotion.startDate && promotion.startDate > today) return 'scheduled'
   return 'live'
 }
 
