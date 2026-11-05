@@ -1,3 +1,11 @@
+import {
+  daysBetween,
+  formatMonthDay,
+  formatShortDate,
+  fromDateKey,
+  todayKey,
+  WEEKDAYS,
+} from './dates.js'
 import { isHttpUrl } from './validate.js'
 
 export const MAX_PHOTOS = 5
@@ -67,4 +75,51 @@ export function youTubeId(url) {
     /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/,
   )
   return match?.[1] ?? null
+}
+
+// ---------- 운영 일정 ----------
+// operating: { always: true } | { always: false, startDate, endDate }
+// ('YYYY-MM-DD', 시작일·종료일 당일 포함).
+
+export const ALWAYS_OPEN = { always: true, startDate: '', endDate: '' }
+
+export function operatingError(operating) {
+  if (operating.always) return null
+  if (!operating.startDate || !operating.endDate)
+    return '시작일과 종료일을 입력해 주세요.'
+  if (operating.endDate < operating.startDate)
+    return '종료일은 시작일과 같거나 뒤여야 해요.'
+  return null
+}
+
+// 오늘(한국) 기준 운영 상태. 기간이 없거나 틀리면 null.
+// → { state: 'upcoming' | 'open' | 'ended', daysLeft, totalDays }
+export function operatingStatus(operating, today = todayKey()) {
+  if (operating.always || operatingError(operating)) return null
+  const { startDate, endDate } = operating
+  const totalDays = daysBetween(startDate, endDate) + 1
+  if (today < startDate)
+    return {
+      state: 'upcoming',
+      daysLeft: daysBetween(today, startDate),
+      totalDays,
+    }
+  if (today <= endDate)
+    return { state: 'open', daysLeft: daysBetween(today, endDate), totalDays }
+  return { state: 'ended', daysLeft: 0, totalDays }
+}
+
+// "26.11.09 (월)"
+export const formatDateWithWeekday = (key) =>
+  `${formatShortDate(key)} (${WEEKDAYS[fromDateKey(key).getDay()]})`
+
+// 목록용 "26.11.09~11.18" (해가 바뀌면 끝도 yy.mm.dd). 상시면 null.
+export function operatingShort(operating) {
+  if (operating.always || operatingError(operating)) return null
+  const { startDate, endDate } = operating
+  const end =
+    startDate.slice(0, 4) === endDate.slice(0, 4)
+      ? formatMonthDay(endDate)
+      : formatShortDate(endDate)
+  return `${formatShortDate(startDate)}~${end}`
 }

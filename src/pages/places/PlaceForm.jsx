@@ -10,6 +10,7 @@ import {
 } from '../../api/places.js'
 import Button from '../../components/Button.jsx'
 import Card from '../../components/Card.jsx'
+import Chip from '../../components/Chip.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Field from '../../components/form/Field.jsx'
 import HoursInput from '../../components/form/HoursInput.jsx'
@@ -17,16 +18,21 @@ import { inputClass } from '../../components/form/inputClass.js'
 import LinkListInput from '../../components/form/LinkListInput.jsx'
 import LocalizedInput from '../../components/form/LocalizedInput.jsx'
 import MemberPicker from '../../components/form/MemberPicker.jsx'
+import PeriodInput from '../../components/form/PeriodInput.jsx'
 import PhotoListInput from '../../components/form/PhotoListInput.jsx'
 import PinMap from '../../components/form/PinMap.jsx'
 import Switch from '../../components/Switch.jsx'
 import { LANGUAGES } from '../../lib/languages.js'
 import {
+  ALWAYS_OPEN,
   DEFAULT_DAY,
   everyDay,
+  formatDateWithWeekday,
   hoursError,
   MAX_PHOTOS,
   MAX_VIDEOS,
+  operatingError,
+  operatingStatus,
   PLACE_PHOTO,
   videoUrlsError,
 } from '../../lib/places.js'
@@ -50,8 +56,87 @@ const emptyPlace = () => ({
   photos: [],
   memberIds: [],
   keywordIds: [],
+  operating: { ...ALWAYS_OPEN },
   hours: everyDay(DEFAULT_DAY),
 })
+
+const OPERATING_STATE = {
+  upcoming: {
+    label: '운영 예정',
+    tone: 'bg-info-soft text-info',
+    detail: (n) => `시작까지 ${n}일`,
+  },
+  open: {
+    label: '운영 중',
+    tone: 'bg-ok-soft text-ok',
+    detail: (n) => (n === 0 ? '오늘 종료' : `종료까지 ${n}일`),
+  },
+  ended: { label: '운영 종료', tone: 'bg-chip text-muted', detail: () => null },
+}
+
+// 운영 일정: 상시 운영 체크박스 + 기간(시작~종료)과 오늘(한국) 기준 상태.
+function OperatingInput({ value, onChange, error }) {
+  const status = operatingStatus(value)
+  const state = status && OPERATING_STATE[status.state]
+  const detail = state?.detail(status.daysLeft)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <label className="flex w-fit cursor-pointer items-start gap-2">
+        <input
+          type="checkbox"
+          checked={value.always}
+          onChange={(event) =>
+            onChange({ ...value, always: event.target.checked })
+          }
+          className="mt-0.5 size-4 accent-point-strong"
+        />
+        <span>
+          <span className="block text-sm font-medium">상시 운영</span>
+          <span className="block text-xs text-sub">
+            음식점·공연장처럼 끝나는 날이 없는 곳
+          </span>
+        </span>
+      </label>
+      <Field
+        label="운영 기간"
+        required={!value.always}
+        error={value.always ? undefined : error}
+        hint={
+          value.always
+            ? '상시 운영 중에는 기간을 정하지 않아요. 체크를 풀면 기간을 입력할 수 있어요.'
+            : undefined
+        }
+      >
+        <PeriodInput
+          value={value}
+          onChange={({ startDate, endDate }) =>
+            onChange({ ...value, startDate, endDate })
+          }
+          invalid={!value.always && Boolean(error)}
+          disabled={value.always}
+        />
+      </Field>
+      {!value.always &&
+        (status ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-border bg-panel px-4 py-3">
+            <Chip tone={state.tone}>{state.label}</Chip>
+            {detail && <span className="text-sm font-semibold">{detail}</span>}
+            <span className="text-sm text-muted tabular-nums">
+              {formatDateWithWeekday(value.startDate)} ~{' '}
+              {formatDateWithWeekday(value.endDate)} · {status.totalDays}일간
+            </span>
+          </div>
+        ) : (
+          (!value.startDate || !value.endDate) && (
+            <p className="text-xs text-sub">
+              시작일과 종료일을 입력하면 오늘(한국) 기준 운영 상태가 보여요.
+            </p>
+          )
+        ))}
+    </div>
+  )
+}
 
 // Field → message for what has to be fixed before saving.
 function validate(form) {
@@ -63,6 +148,8 @@ function validate(form) {
   } else if (form.lat == null || form.lng == null) {
     errors.address = '‘좌표 찾기’로 지도 위치를 정해 주세요.'
   }
+  const operating = operatingError(form.operating)
+  if (operating) errors.operating = operating
   const hours = hoursError(form.hours)
   if (hours) errors.hours = hours
   if (form.photos.length === 0) errors.photos = '사진을 한 장 이상 올려 주세요.'
@@ -94,7 +181,9 @@ function Section({ title, hint, children }) {
 // HT09 map), saved together. initial null: a new place.
 function PlaceForm({ initial, groups, keywords, onSaved, onDeleted }) {
   const [form, setForm] = useState(() =>
-    structuredClone(initial ?? emptyPlace()),
+    structuredClone(
+      initial ? { operating: { ...ALWAYS_OPEN }, ...initial } : emptyPlace(),
+    ),
   )
   // Unsaved edits: leaving asks first.
   const [dirty, setDirty] = useState(false)
@@ -161,6 +250,9 @@ function PlaceForm({ initial, groups, keywords, onSaved, onDeleted }) {
       photos: form.photos,
       memberIds: form.memberIds,
       keywordIds: form.keywordIds,
+      operating: form.operating.always
+        ? { ...ALWAYS_OPEN }
+        : { ...form.operating },
       hours: form.hours,
     }
     setSaving(true)
@@ -422,6 +514,17 @@ function PlaceForm({ initial, groups, keywords, onSaved, onDeleted }) {
               {errors.photos}
             </p>
           )}
+        </Section>
+
+        <Section
+          title="운영 일정"
+          hint="생일카페·팝업처럼 기간이 정해진 곳은 상시 운영을 풀고 시작일과 종료일을 입력하세요."
+        >
+          <OperatingInput
+            value={form.operating}
+            onChange={set('operating')}
+            error={errors.operating}
+          />
         </Section>
 
         <Section

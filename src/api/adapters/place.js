@@ -1,4 +1,4 @@
-import { DAYS } from '../../lib/places.js'
+import { ALWAYS_OPEN, DAYS } from '../../lib/places.js'
 import { imageUrlFromKey, keyForUrl } from './image.js'
 
 // 백엔드 AdminPlaceDetailResponse ↔ 화면의 Place (api/places.js 참고).
@@ -23,8 +23,10 @@ import { imageUrlFromKey, keyForUrl } from './image.js'
 // - keywordIds ↔ keywordCodes (화면의 키워드 id = code).
 // - hours ↔ openingHours: hoursToApi 위 규칙 참고. 휴무는 closed, 브레이크는
 //   앞 1개, 자정 넘김·00:00 은 그대로, 24:00 만 00:00 으로.
-// - avgStayMinutes·operatingPeriod: 화면에 없음 → 기존 값 유지(새 장소는
-//   백엔드 기본: 60분, 상시 운영).
+// - operating ↔ operatingPeriod (AdminPlaceOperatingPeriod
+//   { startsOn, endsOn }, 'YYYY-MM-DD', 당일 포함). null = 상시 운영
+//   ↔ { always: true }. 기간이면 { always: false, startDate, endDate }.
+// - avgStayMinutes: 화면에 없음 → 기존 값 유지(새 장소는 백엔드 기본 60분).
 
 export const DEFAULT_CATEGORY = 'FANDOM_PLACE'
 
@@ -46,6 +48,16 @@ export const textToApi = (text) => {
 }
 
 // ---------- 읽기 ----------
+
+const operatingFromApi = (period) =>
+  period
+    ? { always: false, startDate: period.startsOn, endDate: period.endsOn }
+    : { ...ALWAYS_OPEN }
+
+const operatingToApi = (operating) =>
+  operating.always
+    ? null
+    : { startsOn: operating.startDate, endsOn: operating.endDate }
 
 function hoursFromApi(openingHours) {
   if (!openingHours) return null
@@ -96,6 +108,7 @@ export function placeFromApi(raw, groups) {
     photos: (raw.imageKeys ?? []).map(imageUrlFromKey),
     memberIds: memberIdsFromApi(raw.artists, groups),
     keywordIds: raw.keywordCodes ?? [],
+    operating: operatingFromApi(raw.operatingPeriod),
     hours: hoursFromApi(raw.openingHours),
     visible: raw.visible,
     updatedAt: raw.updatedAt ?? '',
@@ -235,7 +248,9 @@ export function placeToApi(fields, base, groups) {
       .map((url) => url.trim())
       .filter(Boolean),
     imageKeys: (fields.photos ?? []).map(keyForUrl).filter(Boolean),
-    operatingPeriod: base?.operatingPeriod ?? null,
+    operatingPeriod: fields.operating
+      ? operatingToApi(fields.operating)
+      : (base?.operatingPeriod ?? null),
     openingHours: hoursToApi(fields.hours),
     keywordCodes: fields.keywordIds ?? [],
     artists: artistsToApi(fields.memberIds ?? [], base?.artists ?? [], groups),

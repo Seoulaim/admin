@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import Card from '../../components/Card.jsx'
 import { inputClass } from '../../components/form/inputClass.js'
 import { nameMatches } from '../../lib/artists.js'
-import { hoursSummary } from '../../lib/places.js'
+import { hoursSummary, operatingShort } from '../../lib/places.js'
 
 const FILTERS = [
   { id: 'all', label: '전체' },
@@ -108,7 +108,13 @@ function PlaceList({ places, groups, selectedId }) {
                   </p>
                   <p className="truncate text-xs text-sub">
                     멤버 {place.memberIds.length} · 키워드{' '}
-                    {place.keywordIds.length} · {hoursSummary(place.hours)}
+                    {place.keywordIds.length} ·{' '}
+                    {[
+                      place.operating && operatingShort(place.operating),
+                      hoursSummary(place.hours),
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </p>
                 </div>
               </Link>
