@@ -11,7 +11,8 @@ import { getGroups } from './artists.js'
 import { request } from './client.js'
 
 // Place: { id, name, topic, address, lat, lng, naverMapUrl, phone, website,
-//   videoUrls, photos, memberIds, keywordIds, hours, visible, updatedAt }
+//   videoUrls, photos, memberIds, keywordIds, operating, hours, visible,
+//   updatedAt }
 // - name / topic: { en, ko, zh, ja } (en required).
 // - address: { ko, en, zh, ja } — ko (what Geocoding reads) and en required.
 // - lat / lng: the map pin, from geocodeAddress or dragged by the admin.
@@ -20,6 +21,9 @@ import { request } from './client.js'
 // - photos: up to 5 image URLs, the first is the main one.
 // - memberIds: tagged members (any groups, always per member — a place
 //   for a whole group lists each member). keywordIds: HC05 keywords.
+// - operating: { always: true } (상시 운영: 음식점·공연장) or
+//   { always: false, startDate, endDate } ('YYYY-MM-DD', 당일 포함; 생일카페·
+//   팝업처럼 기간이 정해진 곳). 상시면 startDate·endDate 는 ''.
 // - hours: null when it has none (parks, streets …), otherwise
 //   { mon … sun: null (closed) | { open, close, breaks: [{ start, end }] } }
 //   in Seoul time, 'HH:MM'; close may be '24:00' or past midnight

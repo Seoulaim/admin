@@ -1,7 +1,7 @@
 import { inputClass } from './inputClass.js'
 
 // Start ~ end date ('YYYY-MM-DD'). value: { startDate, endDate }.
-function PeriodInput({ value, onChange, invalid = false }) {
+function PeriodInput({ value, onChange, invalid = false, disabled = false }) {
   const input = (key, label) => (
     <input
       type="date"
@@ -10,7 +10,8 @@ function PeriodInput({ value, onChange, invalid = false }) {
       min={key === 'endDate' ? value.startDate : undefined}
       onChange={(event) => onChange({ ...value, [key]: event.target.value })}
       aria-invalid={invalid}
-      className={`${inputClass} h-10 max-w-44`}
+      disabled={disabled}
+      className={`${inputClass} h-10 max-w-44 disabled:cursor-not-allowed`}
     />
   )
 
