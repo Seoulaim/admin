@@ -11,6 +11,24 @@ const FILTERS = [
   { id: 'hidden', label: '숨김' },
 ]
 
+// First photo, or a gray box of the same size when there's none or it
+// fails to load.
+function Thumbnail({ src, dimmed }) {
+  const [failedSrc, setFailedSrc] = useState(null)
+  const sizeClass = 'h-11 w-[68px] shrink-0 rounded-md bg-chip'
+
+  return src && src !== failedSrc ? (
+    <img
+      src={src}
+      alt=""
+      onError={() => setFailedSrc(src)}
+      className={`${sizeClass} object-cover ${dimmed ? 'opacity-40' : ''}`}
+    />
+  ) : (
+    <span aria-hidden="true" className={sizeClass} />
+  )
+}
+
 // Left side of 장소 관리: search by place name (any language), group and
 // visibility filters, and the places, newest edit first.
 function PlaceList({ places, groups, selectedId }) {
@@ -86,15 +104,7 @@ function PlaceList({ places, groups, selectedId }) {
                 aria-current={place.id === selectedId ? 'true' : undefined}
                 className={`flex items-center gap-3 px-3 py-2.5 ${place.id === selectedId ? 'bg-point-soft/60' : 'hover:bg-chip/60'}`}
               >
-                {place.photos[0] ? (
-                  <img
-                    src={place.photos[0]}
-                    alt=""
-                    className={`h-11 w-[68px] shrink-0 rounded-md object-cover ${place.visible ? '' : 'opacity-40'}`}
-                  />
-                ) : (
-                  <span className="h-11 w-[68px] shrink-0 rounded-md bg-chip" />
-                )}
+                <Thumbnail src={place.photos[0]} dimmed={!place.visible} />
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5">
                     <span className="truncate text-sm font-bold">
