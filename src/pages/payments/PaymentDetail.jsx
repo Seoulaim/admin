@@ -3,6 +3,7 @@ import Card from '../../components/Card.jsx'
 import Chip from '../../components/Chip.jsx'
 import { formatDateTime } from '../../lib/dates.js'
 import { formatKrw } from '../../lib/money.js'
+import { REFUND_STATUS } from '../../lib/refunds.js'
 import { PAYMENT_STATUS } from './paymentStatus.js'
 
 function Rows({ rows }) {
@@ -18,10 +19,22 @@ function Rows({ rows }) {
   )
 }
 
-// One payment: what was paid, by whom, for which diary.
+const dateTimeOr = (iso, fallback = '-') =>
+  iso ? formatDateTime(iso) : fallback
+const code = (text) =>
+  text ? (
+    <code key={text} className="text-xs break-all">
+      {text}
+    </code>
+  ) : (
+    '-'
+  )
+
+// One payment: what was paid, by whom, for which diary, with the Toss keys
+// to look it up in the Toss console.
 function PaymentDetail({ payment }) {
   const status = PAYMENT_STATUS[payment.status]
-  const { diary } = payment
+  const { diary, refundRequest } = payment
 
   return (
     <div className="flex flex-col gap-4">
@@ -34,7 +47,7 @@ function PaymentDetail({ payment }) {
             </Chip>
           )}
           <span className="ml-auto text-xs text-sub tabular-nums">
-            {formatDateTime(payment.paidAt)}
+            {formatDateTime(payment.paidAt ?? payment.createdAt)}
           </span>
         </div>
         <p className="text-2xl font-bold tabular-nums">
@@ -45,9 +58,28 @@ function PaymentDetail({ payment }) {
             ['주문번호', payment.orderId],
             [
               '결제 수단',
-              payment.provider === 'toss' ? '토스페이먼츠' : payment.provider,
+              `${payment.provider === 'toss' ? '토스페이먼츠' : payment.provider}${payment.method ? ` · ${payment.method}` : ''}`,
             ],
-            ['환불 제한 동의', formatDateTime(payment.refundConsentAt)],
+            ['주문 생성', dateTimeOr(payment.createdAt)],
+            ['결제 시각', dateTimeOr(payment.paidAt, '결제 전')],
+            ...(payment.refundedAt
+              ? [['환불 시각', formatDateTime(payment.refundedAt)]]
+              : []),
+            ['paymentKey', code(payment.paymentKey)],
+            ...(payment.tossCancelKey
+              ? [['취소 거래 키', code(payment.tossCancelKey)]]
+              : []),
+            ...(payment.failureCode || payment.failureMessage
+              ? [
+                  [
+                    '실패 사유',
+                    [payment.failureCode, payment.failureMessage]
+                      .filter(Boolean)
+                      .join(' · '),
+                  ],
+                ]
+              : []),
+            ['환불 제한 동의', dateTimeOr(payment.refundConsentAt)],
             [
               '결제 후 편집',
               payment.editedAt ? formatDateTime(payment.editedAt) : '없음',
@@ -65,18 +97,26 @@ function PaymentDetail({ payment }) {
             ['이메일', payment.member.email],
           ]}
         />
-        {payment.refundRequestId && (
+        {refundRequest && (
           <Link
-            to={`/refunds/${payment.refundRequestId}`}
-            className="self-start text-sm font-semibold text-point-strong underline underline-offset-2"
+            to={`/refunds/${refundRequest.inquiryId}`}
+            className="flex items-center gap-2 self-start text-sm font-semibold text-point-strong underline underline-offset-2"
           >
             환불 요청 보기 →
+            {REFUND_STATUS[refundRequest.status] && (
+              <Chip tone={REFUND_STATUS[refundRequest.status].tone}>
+                {REFUND_STATUS[refundRequest.status].label}
+              </Chip>
+            )}
           </Link>
         )}
       </Card>
 
       <Card className="flex flex-col gap-3 p-5 sm:p-6">
-        <h3 className="text-sm font-bold">다이어리</h3>
+        <h3 className="flex items-center gap-2 text-sm font-bold">
+          다이어리
+          {diary.deleted && <Chip tone="bg-danger/10 text-danger">삭제됨</Chip>}
+        </h3>
         <Rows
           rows={[
             ['이름', diary.name ?? '(삭제됨)'],
