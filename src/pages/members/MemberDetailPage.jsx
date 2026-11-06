@@ -14,9 +14,9 @@ import {
   formatShortDate,
   seoulDateKey,
 } from '../../lib/dates.js'
-import { pickText } from '../../lib/events.js'
 import { inquiryCategoryLabel } from '../../lib/inquiries.js'
 import { languageName } from '../../lib/languages.js'
+import { MEMBER_STATUS } from '../../lib/members.js'
 import { formatKrw } from '../../lib/money.js'
 import { REFUND_STATUS } from '../../lib/refunds.js'
 import WithdrawDialog from './WithdrawDialog.jsx'
@@ -48,7 +48,7 @@ function Rows({ rows }) {
 
 const Empty = ({ children }) => <p className="text-sm text-sub">{children}</p>
 
-// 회원 관리 › 상세 (/members/:memberId): opening it is logged.
+// 회원 관리 › 상세 (/members/:memberId).
 function MemberDetailPage() {
   const { memberId } = useParams()
   const navigate = useNavigate()
@@ -56,25 +56,41 @@ function MemberDetailPage() {
   const { data: member, error, reload } = useFetch(fetcher)
   const [withdrawing, setWithdrawing] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [withdrawError, setWithdrawError] = useState(null)
 
   async function withdraw(reason, memo) {
     setBusy(true)
+    setWithdrawError(null)
     try {
       await withdrawMember(member.id, reason, memo)
-      navigate('/members?tab=withdrawn', {
+      navigate('/members?status=withdrawn', {
         state: { toast: `${member.nickname} 회원을 강퇴했어요.` },
       })
-    } catch {
+    } catch (e) {
       setBusy(false)
+      if (e.code === 'ALREADY_WITHDRAWN') {
+        setWithdrawing(false)
+        reload()
+      } else {
+        setWithdrawError(
+          e.code === 'BAD_REQUEST' || e.code === 'COMMON_INVALID_REQUEST'
+            ? '사유는 1~200자로 적어 주세요.'
+            : '강퇴하지 못했어요. 다시 시도해 주세요.',
+        )
+      }
     }
   }
 
+  // null: 서버에 기록이 없는 동의 (약관·개인정보·연령).
   const consent = (c) =>
-    c.agreed ? (
-      `동의 · ${formatDateTime(c.at)}`
+    c == null ? (
+      <span className="text-sub">기록 없음</span>
+    ) : c.agreed ? (
+      `동의 · ${c.at ? formatDateTime(c.at) : '가입 시'}`
     ) : (
       <span className="text-sub">동의 안 함</span>
     )
+  const withdrawn = member?.status === 'withdrawn'
 
   return (
     <>
@@ -94,23 +110,42 @@ function MemberDetailPage() {
         ) : (
           <>
             <Card className="flex flex-wrap items-center gap-4 p-5 sm:p-6">
-              <Avatar name={member.nickname} className="size-16 text-2xl" />
+              <Avatar
+                src={member.profileImageUrl}
+                name={member.nickname}
+                className="size-16 text-2xl"
+              />
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-center gap-2 text-xl font-bold">
                   {member.nickname}
-                  <span className="text-base font-medium text-muted">
-                    {member.name}
-                  </span>
+                  {member.name && (
+                    <span className="text-base font-medium text-muted">
+                      {member.name}
+                    </span>
+                  )}
+                  <Chip tone={MEMBER_STATUS[member.status]?.tone}>
+                    {MEMBER_STATUS[member.status]?.label ?? member.status}
+                  </Chip>
                 </p>
                 <p className="mt-1 text-sm text-sub">
-                  {member.email} · {member.id} ·{' '}
-                  {formatShortDate(seoulDateKey(member.joinedAt))} 가입 · 최근
-                  접속 {formatDateTime(member.lastSeenAt)}
+                  {member.email ?? '(이메일 삭제됨 · 탈퇴 회원)'} · {member.id}{' '}
+                  · {formatShortDate(seoulDateKey(member.joinedAt))} 가입
+                  {member.lastSeenAt &&
+                    ` · 최근 접속 ${formatDateTime(member.lastSeenAt)}`}
                 </p>
+                {withdrawn && (
+                  <p className="mt-1 text-sm text-muted">
+                    {member.withdrawnAt && formatDateTime(member.withdrawnAt)}{' '}
+                    {member.withdrawnBy === 'admin' ? '강퇴' : '본인 탈퇴'}
+                    {member.withdrawReason && ` — ${member.withdrawReason}`}
+                  </p>
+                )}
               </div>
-              <Button variant="danger" onClick={() => setWithdrawing(true)}>
-                강퇴
-              </Button>
+              {!withdrawn && (
+                <Button variant="danger" onClick={() => setWithdrawing(true)}>
+                  강퇴
+                </Button>
+              )}
             </Card>
 
             <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
@@ -124,12 +159,6 @@ function MemberDetailPage() {
                         ? member.biases
                             .map((b) => `${b.group.en} ${b.name.en}`)
                             .join(', ')
-                        : '없음',
-                    ],
-                    [
-                      '여행 플랜',
-                      member.plan
-                        ? `${formatShortDate(member.plan.arrivalDate)} ~ ${formatShortDate(member.plan.departureDate)} · 장소 ${member.plan.places}곳`
                         : '없음',
                     ],
                   ]}
@@ -147,9 +176,13 @@ function MemberDetailPage() {
                           {d.name ?? '(삭제됨)'}
                         </span>
                         <span className="text-xs text-sub">
-                          {d.pages}쪽 · {d.first ? '첫 다이어리' : '추가'} ·{' '}
-                          {d.paid ? '결제' : '무료'}
+                          {d.first ? '첫 다이어리' : '추가'} ·{' '}
+                          {d.paid ? '결제' : '무료'} · 저장 {d.saveCount}회 ·
+                          다운로드 {d.downloadCount}회
                         </span>
+                        {d.deleted && (
+                          <Chip tone="bg-danger/10 text-danger">삭제됨</Chip>
+                        )}
                         <Chip
                           tone={
                             d.completedAt
@@ -186,8 +219,13 @@ function MemberDetailPage() {
                           <span className="min-w-0 flex-1 truncate text-muted">
                             {p.diary.name ?? '(삭제됨)'}
                           </span>
+                          {p.status === 'refunded' && (
+                            <Chip tone={REFUND_STATUS.refunded.tone}>
+                              환불됨
+                            </Chip>
+                          )}
                           <span className="text-xs text-sub tabular-nums">
-                            {formatDateTime(p.paidAt)}
+                            {p.paidAt ? formatDateTime(p.paidAt) : '-'}
                           </span>
                         </Link>
                       </li>
@@ -218,7 +256,15 @@ function MemberDetailPage() {
                   rows={[
                     [
                       '계정·서비스 메일',
-                      member.notifications.service ? '받음' : '안 받음',
+                      member.notifications.service == null
+                        ? '-'
+                        : member.notifications.service
+                          ? '받음'
+                          : '안 받음',
+                    ],
+                    [
+                      '푸시 알림',
+                      member.notifications.push ? '받음' : '안 받음',
                     ],
                     [
                       '마케팅 메일',
@@ -249,6 +295,11 @@ function MemberDetailPage() {
               </Section>
 
               <Section title="문의·환불">
+                <p className="text-xs text-sub">
+                  환불 승인 {member.stats.refundedCount}건 · 거절{' '}
+                  {member.stats.rejectedRefundCount}건 · 미답변 문의{' '}
+                  {member.stats.pendingInquiryCount}건
+                </p>
                 {member.inquiries.length === 0 ? (
                   <Empty>남긴 문의가 없어요.</Empty>
                 ) : (
@@ -269,7 +320,7 @@ function MemberDetailPage() {
                           <span className="min-w-0 flex-1 truncate">
                             {i.title}
                           </span>
-                          {i.category === 'refund' ? (
+                          {i.refund ? (
                             <Chip tone={REFUND_STATUS[i.refund.status].tone}>
                               {REFUND_STATUS[i.refund.status].label}
                             </Chip>
@@ -293,48 +344,6 @@ function MemberDetailPage() {
                 )}
               </Section>
 
-              <Section title="만족도 조사">
-                {!member.survey ? (
-                  <Empty>
-                    {member.plan
-                      ? '아직 응답하지 않았어요.'
-                      : '플랜이 없어 대상이 아니에요.'}
-                  </Empty>
-                ) : (
-                  <>
-                    <p className="text-xs text-sub">
-                      {formatDateTime(member.survey.response.submittedAt)} 응답
-                      · 기프티콘{' '}
-                      {member.survey.response.gift.status === 'sent'
-                        ? `발송 완료 (${formatDateTime(member.survey.response.gift.sentAt)})`
-                        : '미발송'}
-                    </p>
-                    <dl className="flex flex-col gap-2 text-sm">
-                      {member.survey.questions.map((q) => {
-                        const answer = member.survey.response.answers[q.id]
-                        if (answer == null || answer === '') return null
-                        const label = (id) =>
-                          pickText(q.options.find((o) => o.id === id)?.label) ||
-                          id
-                        return (
-                          <div key={q.id}>
-                            <dt className="text-sub">{pickText(q.title)}</dt>
-                            <dd className="mt-0.5">
-                              {q.type === 'rating'
-                                ? `${'★'.repeat(answer)} (${answer})`
-                                : q.type === 'text'
-                                  ? answer
-                                  : [answer].flat().map(label).join(', ') ||
-                                    '-'}
-                            </dd>
-                          </div>
-                        )
-                      })}
-                    </dl>
-                  </>
-                )}
-              </Section>
-
               <Section title="계정 기록">
                 <ul className="flex flex-col gap-1.5 text-sm">
                   {[...member.history].reverse().map((h) => (
@@ -350,6 +359,9 @@ function MemberDetailPage() {
                   ))}
                 </ul>
                 <h3 className="mt-2 text-sm font-bold">개인정보 열람 기록</h3>
+                {member.views.length === 0 && (
+                  <Empty>열람 기록은 아직 서버에 남지 않아요.</Empty>
+                )}
                 <ul className="flex flex-col gap-1 text-xs text-muted">
                   {member.views.map((v) => (
                     <li key={v.at} className="tabular-nums">
@@ -366,8 +378,12 @@ function MemberDetailPage() {
         <WithdrawDialog
           member={member}
           busy={busy}
+          error={withdrawError}
           onConfirm={withdraw}
-          onClose={() => setWithdrawing(false)}
+          onClose={() => {
+            setWithdrawing(false)
+            setWithdrawError(null)
+          }}
         />
       )}
     </>

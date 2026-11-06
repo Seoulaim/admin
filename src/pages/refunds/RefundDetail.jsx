@@ -20,6 +20,8 @@ import {
   REFUND_DAYS,
   REFUND_STATUS,
 } from '../../lib/refunds.js'
+
+const dateTimeOr = (iso, fallback) => (iso ? formatDateTime(iso) : fallback)
 import DiaryViewerDialog from '../diaryViewer/DiaryViewerDialog.jsx'
 import { ApproveDialog, RejectDialog } from './RefundDialogs.jsx'
 
@@ -142,6 +144,16 @@ function RefundDetail({ request, onChange, onToast }) {
               </Link>,
             ],
             ['이메일', request.author.email],
+            [
+              '가입일',
+              request.author.joinedAt
+                ? formatShortDate(seoulDateKey(request.author.joinedAt))
+                : '-',
+            ],
+            [
+              '계정 이력',
+              `다이어리 ${request.author.diaryCount}개 · 결제 ${request.author.paidPaymentCount}건 · 환불 승인 ${request.author.refundedCount}건 · 거절 ${request.author.rejectedRefundCount}건 · 미답변 문의 ${request.author.pendingInquiryCount}건`,
+            ],
             ['작성 언어', languageName(request.language)],
             ['요청 시각', formatDateTime(request.createdAt)],
           ]}
@@ -173,7 +185,12 @@ function RefundDetail({ request, onChange, onToast }) {
           />
         </Card>
         <Card className="flex flex-col gap-3 p-5 sm:p-6">
-          <h3 className="text-sm font-bold">다이어리</h3>
+          <h3 className="flex items-center gap-2 text-sm font-bold">
+            다이어리 제작 정보
+            {payment.diary.deleted && (
+              <Chip tone="bg-danger/10 text-danger">삭제됨</Chip>
+            )}
+          </h3>
           <Rows
             rows={[
               ['이름', payment.diary.name ?? '(삭제됨)'],
@@ -183,15 +200,51 @@ function RefundDetail({ request, onChange, onToast }) {
                   ? '첫 다이어리 (3쪽부터 결제)'
                   : '추가 다이어리',
               ],
-              ['페이지', `${payment.diary.pages}쪽`],
+              ['만든 날', dateTimeOr(payment.diary.createdAt, '-')],
               [
-                '완성(Done)',
-                payment.diary.completedAt
-                  ? formatDateTime(payment.diary.completedAt)
-                  : '아직',
+                '저장',
+                `${payment.diary.saveCount}회${payment.diary.lastSavedAt ? ` · 마지막 ${formatDateTime(payment.diary.lastSavedAt)}` : ''}`,
+              ],
+              ['등록 사진', `${payment.diary.photoCount}장`],
+              ['페이지', `${payment.diary.pages}쪽`],
+              ['완성(Done)', dateTimeOr(payment.diary.completedAt, '아직')],
+              [
+                '다운로드',
+                payment.diary.downloads.length === 0 ? (
+                  '없음'
+                ) : (
+                  <ul key="downloads" className="flex flex-col gap-0.5">
+                    {payment.diary.downloads.map((d, index) => (
+                      <li key={index} className="tabular-nums">
+                        {formatDateTime(d.at)} · {d.format} {d.pageCount}쪽
+                      </li>
+                    ))}
+                  </ul>
+                ),
               ],
             ]}
           />
+          {payment.diary.pageUrls.length > 0 && (
+            <ul className="flex flex-wrap gap-2">
+              {payment.diary.pageUrls.map((url, index) => (
+                <li key={url}>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`${index + 1}쪽 원본 (새 탭)`}
+                  >
+                    <img
+                      src={url}
+                      alt={`완성 ${index + 1}쪽`}
+                      loading="lazy"
+                      className="h-20 rounded-md border border-border bg-chip object-cover"
+                    />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
           {waiting && (
             <p className="text-xs text-muted">
               환불하면: {diaryOutcome(payment.diary)}
@@ -215,30 +268,52 @@ function RefundDetail({ request, onChange, onToast }) {
         <h3 className="text-sm font-bold">
           환불 정책 확인{' '}
           <span className="text-xs font-normal text-sub">
-            요청한 시각 기준 (제3조 1항, 제4조)
+            지금 기준 서버 판정 (제3조 1항, 제4조)
           </span>
         </h3>
-        <ul className="flex flex-col gap-2">
-          <Check ok={policy.inTime}>
-            결제 후 {REFUND_DAYS}일 이내 요청 — 결제 {policy.daysSincePayment}
-            일째에 요청했어요
-          </Check>
-          <Check ok={policy.notEdited}>
-            {policy.notEdited
-              ? '요청할 때 결제 후 편집 이력 없음'
-              : `결제 후 편집함 (${formatShortDate(seoulDateKey(payment.editedAt))})`}
-          </Check>
-          <Check ok={policy.notFinished}>
-            요청할 때 다이어리를 완성(Done)하지 않음
-          </Check>
-        </ul>
+        {policy ? (
+          <ul className="flex flex-col gap-2">
+            <Check ok={policy.within7Days.ok}>
+              결제 후 {REFUND_DAYS}일 이내 — 결제{' '}
+              {dateTimeOr(policy.within7Days.paidAt, '전')}, 기한{' '}
+              {dateTimeOr(policy.within7Days.deadlineAt, '-')}
+            </Check>
+            <Check ok={policy.notEdited.ok}>
+              {policy.notEdited.ok
+                ? '결제 후 편집 이력 없음'
+                : `결제 후 편집함 (${formatDateTime(policy.notEdited.editedAt)})`}
+            </Check>
+            <Check ok={policy.notFinalized.ok}>
+              {policy.notFinalized.ok
+                ? '다이어리를 완성(Done)하지 않음'
+                : `완성함 (${dateTimeOr(policy.notFinalized.finalizedAt, '시각 없음')})`}
+            </Check>
+            <Check ok={policy.notDownloaded.ok}>
+              {policy.notDownloaded.ok
+                ? '완성본을 내려받지 않음'
+                : `완성본 다운로드 ${policy.notDownloaded.downloadCount}회 (마지막 ${dateTimeOr(policy.notDownloaded.lastDownloadedAt, '-')})`}
+            </Check>
+          </ul>
+        ) : (
+          <p className="text-sm text-muted">
+            결제를 찾을 수 없어 판정할 수 없어요.
+          </p>
+        )}
+        {policy && policy.allOk !== refundWithinPolicy && (
+          <p className="rounded-lg bg-warn-soft px-3 py-2 text-xs font-semibold text-warn">
+            신청 후 상태가 바뀜 — 신청할 때는{' '}
+            {refundWithinPolicy ? '정책 안' : '정책 밖'}, 지금은{' '}
+            {policy.allOk ? '정책 안' : '정책 밖'}이에요. 승인 조건은 신청 시점
+            판정을 따라요.
+          </p>
+        )}
 
         {waiting ? (
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
             {!refundWithinPolicy && (
               <p className="mr-auto text-xs text-muted">
-                {policy.ok
-                  ? "위 항목은 모두 맞지만 서버 판정은 정책 밖이에요. 서버 판정이 우선이라 환불하려면 예외 사유가 필요해요. 편집 이력 정리 전에 들어온 요청이면 '기타 (운영 판단)'로 처리해 주세요."
+                {policy?.allOk
+                  ? "지금 기준으로는 모두 맞지만 신청 시점 판정은 정책 밖이에요. 승인 조건은 신청 시점 판정이라 환불하려면 예외 사유가 필요해요 (회사 판단이면 '기타 (운영 판단)')."
                   : '정책 밖이에요. 제5조에 해당하거나, 결제 후 편집한 요청을 회사 판단으로 환불한다면(제3조 2항, 기타) 예외 사유를 골라 환불할 수 있어요.'}
               </p>
             )}

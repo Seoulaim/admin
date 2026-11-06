@@ -1,6 +1,10 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router'
-import { getWithdrawalChecks } from '../../api/members.js'
+import {
+  getWithdrawalChecks,
+  WITHDRAW_REASON_MAX,
+  withdrawReasonText,
+} from '../../api/members.js'
 import Button from '../../components/Button.jsx'
 import Dialog from '../../components/Dialog.jsx'
 import { inputClass } from '../../components/form/inputClass.js'
@@ -9,13 +13,19 @@ import { WITHDRAWAL_REASONS } from '../../lib/members.js'
 
 // 강퇴: reason + memo, with what to settle first (waiting refund requests,
 // payments still in the refund period).
-function WithdrawDialog({ member, busy, onConfirm, onClose }) {
+function WithdrawDialog({ member, busy, error, onConfirm, onClose }) {
   const fetcher = useCallback(() => getWithdrawalChecks(member.id), [member.id])
   const { data: checks } = useFetch(fetcher)
   const [reason, setReason] = useState(null)
   const [memo, setMemo] = useState('')
   const [typed, setTyped] = useState('')
-  const ready = reason && memo.trim() && typed === member.nickname
+  // 서버는 사유 하나(1~200자)를 받아서 '사유 라벨 — 설명'으로 합쳐 보낸다.
+  const sentLength = reason ? withdrawReasonText(reason, memo).length : 0
+  const tooLong =
+    reason &&
+    `${withdrawReasonText(reason, '')}${memo.trim()}`.length >
+      WITHDRAW_REASON_MAX
+  const ready = reason && memo.trim() && !tooLong && typed === member.nickname
 
   return (
     <Dialog
@@ -40,11 +50,14 @@ function WithdrawDialog({ member, busy, onConfirm, onClose }) {
     >
       <ul className="mb-4 flex list-disc flex-col gap-1.5 pl-5 text-sm text-muted">
         <li>
-          계정과 다이어리, 등록 사진, 여행 플랜이 삭제되고 되돌릴 수 없어요.
+          회원 본인 탈퇴와 같이 처리돼요: 최애·장소 즐겨찾기·일정이 삭제되고,
+          다이어리는 삭제 처리되고, 이메일이 지워지고, 로그인이 모두 풀려요.
+          되돌릴 수 없어요.
         </li>
         <li>결제 기록은 전자상거래법에 따라 5년 동안 보관돼요.</li>
         <li>
-          {member.email}로 강퇴 안내 메일이 가요 (사유, 이의 제기 방법 포함).
+          강퇴 안내 메일은 아직 자동으로 가지 않아요. 필요하면 {member.email}로
+          따로 알려 주세요.
         </li>
         <li>이용약관에 정한 사유에 해당할 때만 강퇴할 수 있어요.</li>
       </ul>
@@ -94,10 +107,17 @@ function WithdrawDialog({ member, busy, onConfirm, onClose }) {
         value={memo}
         onChange={(event) => setMemo(event.target.value)}
         rows={3}
-        maxLength={500}
-        placeholder="무슨 일이 있었는지 적어 주세요 (기록되고, 회원에게 보내는 메일에도 들어가요)"
+        placeholder="무슨 일이 있었는지 적어 주세요 (사유와 함께 회원 기록에 남아요)"
         className={`${inputClass} mt-3 resize-y py-2`}
       />
+      {reason && (
+        <p
+          className={`mt-1 text-right text-xs tabular-nums ${tooLong ? 'text-danger' : 'text-sub'}`}
+        >
+          사유 포함 {sentLength}
+          {tooLong && '+'} / {WITHDRAW_REASON_MAX}자
+        </p>
+      )}
       <label className="mt-4 flex flex-col gap-1.5 text-sm">
         <span>
           확인을 위해 닉네임 <b>{member.nickname}</b>을(를) 입력하세요
@@ -108,6 +128,7 @@ function WithdrawDialog({ member, busy, onConfirm, onClose }) {
           className={`${inputClass} h-10`}
         />
       </label>
+      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
     </Dialog>
   )
 }
