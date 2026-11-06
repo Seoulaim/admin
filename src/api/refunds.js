@@ -12,9 +12,17 @@ import { request } from './client.js'
 //   refundWithinPolicy, deadline }
 // - refund: { status: 'requested' | 'refunded' | 'rejected', decidedAt,
 //   adminName, exception: { reason, memo } | null, rejectReason }
+// - author: { id, nickname, email, joinedAt, appLanguage, diaryCount,
+//   paidPaymentCount, refundedCount, rejectedRefundCount,
+//   pendingInquiryCount, withdrawn }
 // - payment: { id, orderId, amount, provider, paidAt, refundConsentAt,
-//   editedAt, diary: { id, name, first, pages, completedAt } }
-// - policy: checkRefundPolicy — why, judged at the time of the request.
+//   editedAt, diary: { id, name, first, pages, completedAt, createdAt,
+//   saveCount, lastSavedAt, photoCount, pageUrls, thumbnailUrl,
+//   downloads: [{ format, pageCount, at }], deleted } }
+// - policy: the server's check, judged now — { within7Days: { ok, paidAt,
+//   deadlineAt }, notEdited: { ok, editedAt }, notFinalized: { ok,
+//   finalizedAt }, notDownloaded: { ok, downloadCount, lastDownloadedAt },
+//   allOk } — or null when the payment can't be found.
 // - refundWithinPolicy: the server's own verdict, which decides, even when
 //   policy looks fine (see the editedAt clean-up in docs/admin-api.md). A member
 //   can ask within 7 days even after editing; it arrives marked false.
@@ -29,7 +37,7 @@ import { request } from './client.js'
 
 // 백엔드: /api/v1/admin/refund-requests (domain/inquiry/admin,
 // docs/inquiry-flow.md). 형태 변환은 adapters/refund.js.
-// refundWithinPolicy·deadline 은 백엔드 값, policy 만 화면 표시용으로 계산.
+// refundWithinPolicy(신청 시점)·policy(지금)·deadline 모두 백엔드 값.
 
 const BASE = '/api/v1/admin/refund-requests'
 
