@@ -13,3 +13,10 @@ export const WITHDRAWAL_REASONS = [
 
 export const withdrawalReasonLabel = (id) =>
   WITHDRAWAL_REASONS.find((r) => r.id === id)?.label ?? id
+
+// 회원 상태 (백엔드 users.status, 소문자).
+export const MEMBER_STATUS = {
+  active: { label: '활성', tone: 'bg-ok-soft text-ok' },
+  suspended: { label: '정지', tone: 'bg-warn-soft text-warn' },
+  withdrawn: { label: '탈퇴', tone: 'bg-chip text-muted' },
+}
