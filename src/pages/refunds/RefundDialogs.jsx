@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Button from '../../components/Button.jsx'
 import Dialog from '../../components/Dialog.jsx'
 import { inputClass } from '../../components/form/inputClass.js'
-import { formatKrw } from '../../lib/money.js'
+import { formatMoney } from '../../lib/money.js'
 import { diaryOutcome, EXCEPTION_REASONS } from '../../lib/refunds.js'
 
 // Confirms a refund. outsidePolicy: the admin must pick a 제5조 reason (or
@@ -47,7 +47,7 @@ export function ApproveDialog({
           <Button variant="primary" onClick={confirm} disabled={busy}>
             {busy
               ? '환불하는 중…'
-              : `${formatKrw(request.payment.amount)} 환불하기`}
+              : `${formatMoney(request.payment.amount, request.payment.currency)} 환불하기`}
           </Button>
         </>
       }

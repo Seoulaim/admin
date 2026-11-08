@@ -15,7 +15,7 @@ import { request } from './client.js'
 // - author: { id, nickname, email, joinedAt, appLanguage, diaryCount,
 //   paidPaymentCount, refundedCount, rejectedRefundCount,
 //   pendingInquiryCount, withdrawn }
-// - payment: { id, orderId, amount, provider, paidAt, refundConsentAt,
+// - payment: { id, orderId, amount, currency (KRW | USD), method (CARD | PAYPAL), methodLabel, provider, paidAt, refundConsentAt,
 //   editedAt, diary: { id, name, first, pages, completedAt, createdAt,
 //   saveCount, lastSavedAt, photoCount, pageUrls, thumbnailUrl,
 //   downloads: [{ format, pageCount, at }], deleted } }

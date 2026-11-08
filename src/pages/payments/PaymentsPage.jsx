@@ -20,7 +20,7 @@ import {
   formatShortDate,
   seoulDateKey,
 } from '../../lib/dates.js'
-import { formatKrw } from '../../lib/money.js'
+import { formatAmounts, formatMoney } from '../../lib/money.js'
 import PaymentDetail from './PaymentDetail.jsx'
 import { PAYMENT_STATUS, PAYMENT_STATUS_FILTERS } from './paymentStatus.js'
 
@@ -38,6 +38,8 @@ function downloadCsv(rows) {
     '이메일',
     '다이어리',
     '금액',
+    '통화',
+    '결제 수단',
     '상태',
   ]
   const lines = rows.map((p) => [
@@ -48,6 +50,8 @@ function downloadCsv(rows) {
     p.member.email,
     p.diary.name ?? '(삭제됨)',
     p.amount,
+    p.currency,
+    p.methodLabel ?? '',
     PAYMENT_STATUS[p.status].label,
   ])
   const csv = [header, ...lines]
@@ -152,16 +156,16 @@ function PaymentsPage() {
               <>
                 <span>
                   결제 <b>{summary.paidCount}건</b>{' '}
-                  {formatKrw(summary.paidAmount)}
+                  {formatAmounts(summary.paidAmounts)}
                 </span>
                 <span className="text-muted">
                   환불 {summary.refundedCount}건{' '}
-                  {formatKrw(summary.refundedAmount)}
+                  {formatAmounts(summary.refundedAmounts)}
                 </span>
                 <span>
                   순매출{' '}
                   <b className="text-point-strong">
-                    {formatKrw(summary.paidAmount)}
+                    {formatAmounts(summary.paidAmounts)}
                   </b>
                 </span>
                 <span className="text-xs text-sub">
@@ -198,7 +202,7 @@ function PaymentsPage() {
                           <p className="truncate text-sm font-bold">
                             {p.member.nickname}
                             <span className="ml-2 font-medium text-muted tabular-nums">
-                              {formatKrw(p.amount)}
+                              {formatMoney(p.amount, p.currency)}
                             </span>
                           </p>
                           <p className="truncate text-xs text-sub tabular-nums">

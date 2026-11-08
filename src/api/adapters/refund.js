@@ -1,3 +1,4 @@
+import { paymentMethodLabel } from '../../lib/money.js'
 import { imageUrlFromKey } from './image.js'
 import { authorFromApi, photoUrlsFromKeys } from './inquiry.js'
 
@@ -59,6 +60,9 @@ function paymentFromApi(raw, createdAt) {
     id: raw?.id ?? null,
     orderId: raw?.orderId ?? '',
     amount: Number(raw?.amount ?? 0),
+    currency: raw?.currency ?? 'KRW',
+    method: raw?.method ? String(raw.method).toUpperCase() : null,
+    methodLabel: paymentMethodLabel(raw?.method),
     provider: raw?.provider ?? 'toss',
     paidAt: raw?.paidAt ?? createdAt,
     refundConsentAt: raw?.refundConsentAt ?? null,

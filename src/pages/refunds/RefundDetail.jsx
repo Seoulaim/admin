@@ -13,7 +13,7 @@ import {
   todayKey,
 } from '../../lib/dates.js'
 import { languageName } from '../../lib/languages.js'
-import { formatKrw } from '../../lib/money.js'
+import { formatMoney } from '../../lib/money.js'
 import {
   diaryOutcome,
   exceptionLabel,
@@ -169,12 +169,17 @@ function RefundDetail({ request, onChange, onToast }) {
           <h3 className="text-sm font-bold">결제</h3>
           <Rows
             rows={[
-              ['금액', <b key="amount">{formatKrw(payment.amount)}</b>],
+              [
+                '금액',
+                <b key="amount">
+                  {formatMoney(payment.amount, payment.currency)}
+                </b>,
+              ],
               ['결제 시각', formatDateTime(payment.paidAt)],
               ['주문번호', payment.orderId],
               [
                 '결제 수단',
-                payment.provider === 'toss' ? '토스페이먼츠' : payment.provider,
+                `${payment.provider === 'toss' ? '토스페이먼츠' : payment.provider}${payment.methodLabel ? ` · ${payment.methodLabel}` : ''}`,
               ],
               ['환불 제한 동의', formatDateTime(payment.refundConsentAt)],
               [
@@ -325,7 +330,7 @@ function RefundDetail({ request, onChange, onToast }) {
               onClick={() => setDialog('approve')}
             >
               {refundWithinPolicy
-                ? `${formatKrw(payment.amount)} 환불하기`
+                ? `${formatMoney(payment.amount, payment.currency)} 환불하기`
                 : '예외로 환불하기'}
             </Button>
           </div>

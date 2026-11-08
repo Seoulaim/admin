@@ -4,7 +4,8 @@ import { request } from './client.js'
 
 // 결제 관리: every diary payment, newest first.
 // Payment: { id, orderId, member: { id, nickname, email }, amount,
-//   provider ('toss'), method (토스 결제수단, or null), createdAt,
+//   currency (KRW | USD; amount in its unit, USD 2.99), provider ('toss'),
+//   method (CARD | PAYPAL), methodDetail (토스 결제수단, or null), methodLabel, createdAt,
 //   paidAt (null before paying), refundedAt, refundConsentAt,
 //   editedAt: first edit after paying (POST /diaries/{id}/edited), or null.
 //     On a first diary only pages 3+ count: pages 1–2 are free to change,
@@ -57,7 +58,7 @@ function queryString({ status, q, from, to, page, size }) {
 //   q (orderId·email·nickname), from, to (created date YYYY-MM-DD, Seoul),
 //   page (0-based), size }.
 // → { items, page, size, totalElements, summary: { paidCount, paidAmount,
-//   refundedCount, refundedAmount } } — summary follows q/from/to but not
+//   refundedCount, refundedAmount (KRW), paidAmounts, refundedAmounts ({ KRW, USD }) } } — summary follows q/from/to but not
 //   status.
 export async function getPayments(filters = {}) {
   return paymentPageFromApi(await call(`${BASE}?${queryString(filters)}`))
