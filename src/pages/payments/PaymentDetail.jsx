@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import Card from '../../components/Card.jsx'
 import Chip from '../../components/Chip.jsx'
 import { formatDateTime } from '../../lib/dates.js'
-import { formatKrw } from '../../lib/money.js'
+import { formatMoney } from '../../lib/money.js'
 import { REFUND_STATUS } from '../../lib/refunds.js'
 import { PAYMENT_STATUS } from './paymentStatus.js'
 
@@ -51,14 +51,14 @@ function PaymentDetail({ payment }) {
           </span>
         </div>
         <p className="text-2xl font-bold tabular-nums">
-          {formatKrw(payment.amount)}
+          {formatMoney(payment.amount, payment.currency)}
         </p>
         <Rows
           rows={[
             ['주문번호', payment.orderId],
             [
               '결제 수단',
-              `${payment.provider === 'toss' ? '토스페이먼츠' : payment.provider}${payment.method ? ` · ${payment.method}` : ''}`,
+              `${payment.provider === 'toss' ? '토스페이먼츠' : payment.provider}${payment.methodLabel ? ` · ${payment.methodLabel}` : ''}`,
             ],
             ['주문 생성', dateTimeOr(payment.createdAt)],
             ['결제 시각', dateTimeOr(payment.paidAt, '결제 전')],

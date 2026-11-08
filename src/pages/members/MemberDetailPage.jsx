@@ -17,7 +17,7 @@ import {
 import { inquiryCategoryLabel } from '../../lib/inquiries.js'
 import { languageName } from '../../lib/languages.js'
 import { MEMBER_STATUS } from '../../lib/members.js'
-import { formatKrw } from '../../lib/money.js'
+import { formatMoney } from '../../lib/money.js'
 import { REFUND_STATUS } from '../../lib/refunds.js'
 import WithdrawDialog from './WithdrawDialog.jsx'
 
@@ -214,7 +214,7 @@ function MemberDetailPage() {
                           className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-2 text-sm hover:bg-chip"
                         >
                           <span className="font-bold tabular-nums">
-                            {formatKrw(p.amount)}
+                            {formatMoney(p.amount, p.currency)}
                           </span>
                           <span className="min-w-0 flex-1 truncate text-muted">
                             {p.diary.name ?? '(삭제됨)'}

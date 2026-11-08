@@ -9,7 +9,7 @@ import Toast from '../../components/Toast.jsx'
 import { useFetch } from '../../hooks/useFetch.js'
 import { useToast } from '../../hooks/useToast.js'
 import { daysBetween, formatTimeAgo, todayKey } from '../../lib/dates.js'
-import { formatKrw } from '../../lib/money.js'
+import { formatMoney } from '../../lib/money.js'
 import { REFUND_STATUS } from '../../lib/refunds.js'
 import RefundDetail from './RefundDetail.jsx'
 
@@ -87,7 +87,10 @@ function RefundsPage() {
                             <p className="truncate text-sm font-bold">
                               {r.author.nickname}
                               <span className="ml-2 font-medium text-muted tabular-nums">
-                                {formatKrw(r.payment.amount)}
+                                {formatMoney(
+                                  r.payment.amount,
+                                  r.payment.currency,
+                                )}
                               </span>
                             </p>
                             <p className="truncate text-xs text-sub">

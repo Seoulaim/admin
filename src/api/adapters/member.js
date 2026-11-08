@@ -1,3 +1,4 @@
+import { paymentMethodLabel } from '../../lib/money.js'
 import { imageUrlFromKey } from './image.js'
 
 // 백엔드 어드민 회원 DTO (AdminUserListResponse·AdminUserDetailResponse,
@@ -114,6 +115,9 @@ export function memberFromApi(raw) {
       id: p.id,
       orderId: p.orderNumber,
       amount: Number(p.amount ?? 0),
+      currency: p.currency ?? 'KRW',
+      method: p.method ? String(p.method).toUpperCase() : null,
+      methodLabel: paymentMethodLabel(p.method),
       status: p.status,
       paidAt: p.paidAt ?? null,
       refundedAt: p.refundedAt ?? null,
