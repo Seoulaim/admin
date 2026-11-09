@@ -1,7 +1,12 @@
 import { fonts } from '../mocks/diary.js'
 import { ApiError, handle } from '../mocks/server.js'
 import { templateFromApi, templateToApi } from './adapters/diaryTemplate.js'
-import { stickerFromApi, stickerToApi } from './adapters/diarySticker.js'
+import {
+  stickerCategoryFromApi,
+  stickerCategoryToApi,
+  stickerFromApi,
+  stickerToApi,
+} from './adapters/diarySticker.js'
 import { request } from './client.js'
 
 // 다이어리 관리: what the member app's editor offers (DD05). Every list is
@@ -64,16 +69,38 @@ function list(items, prefix) {
 
 const fontList = list(fonts, 'font')
 
-// ── 템플릿·스티커: 실제 백엔드 (/api/v1/admin/diary-templates, -stickers) ──
+// ── 템플릿·스티커: 실제 백엔드 (/api/v1/admin/diary-templates, -stickers,
+//    -sticker-categories) ──
 // 응답은 adapters/ 가 위 형태로 맞춘다. 백엔드에 없는 것:
 // - 템플릿 usedBy(→ 0), 삭제(→ 'NOT_SUPPORTED', 숨기기만 가능),
 //   다국어 이름(en 만 저장)
-// - 스티커 카테고리(→ categories: [], 카테고리 함수는 'NOT_SUPPORTED')
+// - 스티커 카테고리 다국어 이름(en 만 저장)
 // - 순서 일괄 변경: displayOrder 를 항목별 PUT 으로 맞춘다.
 // - 단건 조회: 목록에서 찾는다.
 
 const TEMPLATES = '/api/v1/admin/diary-templates'
 const STICKERS = '/api/v1/admin/diary-stickers'
+const STICKER_CATEGORIES = '/api/v1/admin/diary-sticker-categories'
+
+const STICKER_ERROR_CODES = {
+  DIARY_STICKER_CATEGORY_NOT_FOUND: 'NOT_FOUND',
+  DIARY_STICKER_CATEGORY_INVALID: 'INVALID',
+}
+
+// 스티커·카테고리 요청: 카테고리 에러 코드를 화면 코드로 바꾼다.
+async function stickerRequest(path, options) {
+  try {
+    return await request(path, options)
+  } catch (error) {
+    if (error instanceof ApiError && STICKER_ERROR_CODES[error.code]) {
+      throw new ApiError(STICKER_ERROR_CODES[error.code], {
+        status: error.status,
+        details: error.details,
+      })
+    }
+    throw error
+  }
+}
 
 const notSupported = () => Promise.reject(new ApiError('NOT_SUPPORTED'))
 
@@ -132,24 +159,29 @@ export const reorderTemplates = (ids) =>
 
 // 비활성(isActive=false) 스티커는 삭제된 것으로 보고 뺀다.
 export async function getStickers() {
-  const raw = await request(STICKERS)
+  const [categories, stickers] = await Promise.all([
+    request(STICKER_CATEGORIES),
+    request(STICKERS),
+  ])
   return {
-    categories: [],
-    stickers: raw.filter((s) => s.isActive).map(stickerFromApi),
+    categories: categories.map(stickerCategoryFromApi),
+    stickers: stickers.filter((s) => s.isActive).map(stickerFromApi),
   }
 }
-// fields: { name, imageUrl, categoryIds } (categoryIds 는 버림).
+// fields: { name, imageUrl, categoryIds }.
+// Rejects with 'NOT_FOUND' when a category is gone.
 export async function createSticker(fields) {
   const displayOrder = nextOrder(await request(STICKERS))
-  const created = await request(STICKERS, {
+  const created = await stickerRequest(STICKERS, {
     method: 'POST',
     body: stickerToApi({ ...fields, displayOrder }),
   })
   return stickerFromApi(created)
 }
+// categoryIds 를 보내면 전체 교체, 빼면 기존 연결 유지.
 export async function updateSticker(id, fields) {
   const base = await findRaw(STICKERS, id, 'DIARY_STICKER_NOT_FOUND')
-  const updated = await request(`${STICKERS}/${id}`, {
+  const updated = await stickerRequest(`${STICKERS}/${id}`, {
     method: 'PUT',
     body: stickerToApi(fields, base),
   })
@@ -161,11 +193,33 @@ export async function deleteSticker(id) {
 }
 export const reorderStickers = (ids) => reorderRaw(STICKERS, ids, stickerToApi)
 
-// 스티커 카테고리: 백엔드에 없음.
-export const createStickerCategory = notSupported
-export const updateStickerCategory = notSupported
-export const deleteStickerCategory = notSupported
-export const reorderStickerCategories = notSupported
+// fields: { name } (name.en 만 저장, 1~50자). Added last.
+// Rejects with 'INVALID' (이름) / 'NOT_FOUND'.
+export const createStickerCategory = async (fields) =>
+  stickerCategoryFromApi(
+    await stickerRequest(STICKER_CATEGORIES, {
+      method: 'POST',
+      body: stickerCategoryToApi(fields),
+    }),
+  )
+export const updateStickerCategory = async (id, fields) =>
+  stickerCategoryFromApi(
+    await stickerRequest(`${STICKER_CATEGORIES}/${id}`, {
+      method: 'PUT',
+      body: stickerCategoryToApi(fields),
+    }),
+  )
+// 스티커와의 연결만 지우고 스티커는 남는다.
+export async function deleteStickerCategory(id) {
+  await stickerRequest(`${STICKER_CATEGORIES}/${id}`, { method: 'DELETE' })
+}
+// ids: every category in the new order.
+export async function reorderStickerCategories(ids) {
+  await stickerRequest(`${STICKER_CATEGORIES}/reorder`, {
+    method: 'PUT',
+    body: { ids },
+  })
+}
 
 export const getFonts = fontList.all
 // fields: { name, family, stylesheetUrl, previewScale }.
