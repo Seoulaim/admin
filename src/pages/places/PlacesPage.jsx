@@ -63,6 +63,7 @@ function PlacesPage() {
                 keywords={data.keywords}
                 onSaved={saved}
                 onDeleted={deleted}
+                onError={showToast}
               />
             ) : (
               <Card className="px-6 py-24 text-center text-sm text-sub">

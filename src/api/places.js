@@ -110,6 +110,9 @@ export async function updatePlace(id, fields) {
 }
 
 // 백엔드 수정은 전체 교체라 지금 값을 받아 visible 만 바꿔 보낸다.
+// 백엔드에 노출만 바꾸는 API 가 없어서, 지금 값이 등록 검증에 맞지 않으면
+// (예: 영어 주제·영어 주소가 빈 장소) 400 COMMON_INVALID_REQUEST
+// (details = { 'summary.en': …, 'address.en': … }) 로 reject 된다.
 export async function setPlaceVisible(id, visible) {
   const base = await getRawPlace(id)
   await request(`${PLACES}/${id}`, {
