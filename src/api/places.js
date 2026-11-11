@@ -3,7 +3,6 @@ import { ApiError } from '../lib/apiClient.js'
 import {
   keywordFromApi,
   keywordToApi,
-  placeDetailToApi,
   placeFromApi,
   placeToApi,
 } from './adapters/place.js'
@@ -109,15 +108,12 @@ export async function updatePlace(id, fields) {
   return placeFromApi(updated, groups)
 }
 
-// 백엔드 수정은 전체 교체라 지금 값을 받아 visible 만 바꿔 보낸다.
-// 백엔드에 노출만 바꾸는 API 가 없어서, 지금 값이 등록 검증에 맞지 않으면
-// (예: 영어 주제·영어 주소가 빈 장소) 400 COMMON_INVALID_REQUEST
-// (details = { 'summary.en': …, 'address.en': … }) 로 reject 된다.
+// 노출 전용 PATCH (다른 필드는 검증·변경하지 않음). 없는 장소는
+// 'PLACE_NOT_FOUND' 로 reject.
 export async function setPlaceVisible(id, visible) {
-  const base = await getRawPlace(id)
-  await request(`${PLACES}/${id}`, {
-    method: 'PUT',
-    body: { ...placeDetailToApi(base), visible },
+  await request(`${PLACES}/${id}/visible`, {
+    method: 'PATCH',
+    body: { visible },
   })
 }
 

@@ -257,35 +257,6 @@ export function placeToApi(fields, base, groups) {
   }
 }
 
-// 상세(raw)를 그대로 다시 보낼 요청으로 (노출만 바꿀 때).
-export function placeDetailToApi(raw) {
-  return {
-    name: raw.name,
-    summary: raw.summary,
-    category: raw.category,
-    visible: raw.visible,
-    address: raw.address,
-    district: raw.district,
-    location: raw.location,
-    avgStayMinutes: raw.avgStayMinutes,
-    phone: raw.phone,
-    homepageUrl: raw.homepageUrl,
-    naverMapUrl: raw.naverMapUrl,
-    referenceLinks: raw.referenceLinks ?? [],
-    imageKeys: raw.imageKeys ?? [],
-    operatingPeriod: raw.operatingPeriod,
-    openingHours: raw.openingHours,
-    keywordCodes: raw.keywordCodes ?? [],
-    artists: (raw.artists ?? []).map(
-      ({ artistGroupId, artistId, description }) => ({
-        artistGroupId,
-        artistId,
-        description,
-      }),
-    ),
-  }
-}
-
 // ---------- 키워드 ----------
 
 // AdminKeywordResponse { id(UUID), code, name: LocalizedText, displayOrder,
