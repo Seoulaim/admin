@@ -165,7 +165,7 @@ function EventsPanel({
                 imageClass="h-[52px] w-10"
                 dim={periodStatus(event) === 'ended'}
                 chip={<PeriodChip item={event} />}
-                editUrl={`/events/${event.id}/edit`}
+                editUrl={`/events/${event.id}/edit?only=event`}
                 onDelete={() => onDelete('entry', event)}
               >
                 <p className="truncate text-sm font-bold">
@@ -175,9 +175,21 @@ function EventsPanel({
                   {formatShortDate(event.startDate)} ~{' '}
                   {formatShortDate(event.endDate)} · {pickText(event.venue)}
                 </p>
-                <p className="truncate text-xs text-sub">
-                  {groupNames(event.groupIds, groups)}
-                  {event.inCalendar && ' · 팬캘린더에도 표시'}
+                <p className="flex items-center gap-1.5 text-xs text-sub">
+                  <span className="truncate">
+                    {groupNames(event.groupIds, groups)}
+                  </span>
+                  {event.inCalendar ? (
+                    <span
+                      className={`shrink-0 rounded-[3px] px-1.5 py-px text-[11px] font-semibold text-text ${tagClass(event.color)}`}
+                    >
+                      팬캘린더
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded-[3px] border border-border px-1.5 py-px text-[11px] font-semibold text-sub">
+                      팬캘린더 미표시
+                    </span>
+                  )}
                 </p>
               </Row>
             ))}

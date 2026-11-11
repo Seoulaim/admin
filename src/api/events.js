@@ -17,7 +17,8 @@ import { request } from './client.js'
 //   and targetUrl (the link the card opens). The calendar never shows the
 //   image.
 // Added from the calendar: inCalendar, with or without a photo. Added from
-// the Event coming up tab: inCalendar false, photo required. Without a
+// the Event coming up tab: photo required, inCalendar chosen by a switch
+// (on by default; color required when on, null when off). Without a
 // photo, endDate is null and venue / targetUrl are empty.
 // Birthday cafe: { id, memberId, venue, startDate, endDate, imageUrl,
 //   linkUrl, createdAt }
