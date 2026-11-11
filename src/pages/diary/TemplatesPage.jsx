@@ -18,6 +18,7 @@ import { useDragSort } from '../../hooks/useDragSort.js'
 import { useFetch } from '../../hooks/useFetch.js'
 import { useToast } from '../../hooks/useToast.js'
 import { moveItem } from '../../lib/arrays.js'
+import { errorText } from '../../lib/errorText.js'
 import { aspectWarning } from '../../lib/templateSvg.js'
 import DiaryLayout from './DiaryLayout.jsx'
 import TemplateThumb from './TemplateThumb.jsx'
@@ -32,6 +33,8 @@ function TemplatesPage() {
   const [savingOrder, setSavingOrder] = useState(false)
   const [deleting, setDeleting] = useState(null)
   const [deleteBusy, setDeleteBusy] = useState(false)
+  // 노출을 바꾸는 중인 템플릿 id: 응답 전 연속 클릭으로 요청이 엇갈리지 않게.
+  const [toggling, setToggling] = useState(() => new Set())
   const move = (from, to) => setOrdering((list) => moveItem(list, from, to))
   const dragProps = useDragSort(move)
 
@@ -41,11 +44,20 @@ function TemplatesPage() {
         list.map((t) => (t.id === template.id ? { ...t, visible: value } : t)),
       )
     set(visible)
+    setToggling((ids) => new Set(ids).add(template.id))
     try {
-      await setTemplateVisible(template.id, visible)
-    } catch {
+      // 서버가 저장한 값으로 맞춘다.
+      const saved = await setTemplateVisible(template.id, visible)
+      set(saved.visible)
+    } catch (e) {
       set(!visible)
-      showToast('바꾸지 못했어요. 다시 시도해 주세요.')
+      showToast(`바꾸지 못했어요 (${errorText(e)}). 다시 시도해 주세요.`)
+    } finally {
+      setToggling((ids) => {
+        const next = new Set(ids)
+        next.delete(template.id)
+        return next
+      })
     }
   }
 
@@ -159,6 +171,11 @@ function TemplatesPage() {
                             {index + 1}
                           </span>
                           {template.name.ko || template.name.en}
+                          {!template.visible && (
+                            <span className="ml-1.5 text-xs font-medium text-sub">
+                              숨김
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-sub">
                           사진 칸 {template.frames.length}개
@@ -189,6 +206,7 @@ function TemplatesPage() {
                           <Switch
                             checked={template.visible}
                             onChange={(on) => toggle(template, on)}
+                            disabled={toggling.has(template.id)}
                             label={`${template.name.en} 노출`}
                           />
                           <Link

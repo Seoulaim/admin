@@ -3,7 +3,6 @@ import { ApiError } from '../lib/apiClient.js'
 import {
   keywordFromApi,
   keywordToApi,
-  placeDetailToApi,
   placeFromApi,
   placeToApi,
 } from './adapters/place.js'
@@ -109,12 +108,12 @@ export async function updatePlace(id, fields) {
   return placeFromApi(updated, groups)
 }
 
-// 백엔드 수정은 전체 교체라 지금 값을 받아 visible 만 바꿔 보낸다.
+// 노출 전용 PATCH (다른 필드는 검증·변경하지 않음). 없는 장소는
+// 'PLACE_NOT_FOUND' 로 reject.
 export async function setPlaceVisible(id, visible) {
-  const base = await getRawPlace(id)
-  await request(`${PLACES}/${id}`, {
-    method: 'PUT',
-    body: { ...placeDetailToApi(base), visible },
+  await request(`${PLACES}/${id}/visible`, {
+    method: 'PATCH',
+    body: { visible },
   })
 }
 

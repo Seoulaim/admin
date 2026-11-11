@@ -22,6 +22,7 @@ import PeriodInput from '../../components/form/PeriodInput.jsx'
 import PhotoListInput from '../../components/form/PhotoListInput.jsx'
 import PinMap from '../../components/form/PinMap.jsx'
 import Switch from '../../components/Switch.jsx'
+import { errorText } from '../../lib/errorText.js'
 import { LANGUAGES } from '../../lib/languages.js'
 import {
   ALWAYS_OPEN,
@@ -179,7 +180,7 @@ function Section({ title, hint, children }) {
 
 // Right side of 장소 관리: every field of one place (HT02 list, HT07 detail,
 // HT09 map), saved together. initial null: a new place.
-function PlaceForm({ initial, groups, keywords, onSaved, onDeleted }) {
+function PlaceForm({ initial, groups, keywords, onSaved, onDeleted, onError }) {
   const [form, setForm] = useState(() =>
     structuredClone(
       initial ? { operating: { ...ALWAYS_OPEN }, ...initial } : emptyPlace(),
@@ -193,6 +194,7 @@ function PlaceForm({ initial, groups, keywords, onSaved, onDeleted }) {
   // null | 'busy' | 'failed' | 'unavailable' | the geocodeAddress result
   const [geocoding, setGeocoding] = useState(null)
   const [visible, setVisible] = useState(initial?.visible ?? true)
+  const [visibleBusy, setVisibleBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
   const blocker = useBlocker(
@@ -273,14 +275,18 @@ function PlaceForm({ initial, groups, keywords, onSaved, onDeleted }) {
 
   async function toggleVisible(next) {
     setVisible(next)
+    setVisibleBusy(true)
     try {
       await setPlaceVisible(initial.id, next)
       onSaved(
         { ...initial, visible: next },
         next ? '앱에 다시 보여요.' : '새 플랜에서 빠져요.',
       )
-    } catch {
+    } catch (e) {
       setVisible(!next)
+      onError(`노출을 바꾸지 못했어요 (${errorText(e)})`)
+    } finally {
+      setVisibleBusy(false)
     }
   }
 
@@ -315,6 +321,7 @@ function PlaceForm({ initial, groups, keywords, onSaved, onDeleted }) {
               <Switch
                 checked={visible}
                 onChange={toggleVisible}
+                disabled={visibleBusy}
                 label="앱에 노출"
               />
             </label>
