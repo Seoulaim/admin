@@ -16,39 +16,45 @@ import LocalizedInput from '../../components/form/LocalizedInput.jsx'
 import PeriodInput from '../../components/form/PeriodInput.jsx'
 import LoadError from '../../components/LoadError.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
+import Switch from '../../components/Switch.jsx'
 import { useFetch } from '../../hooks/useFetch.js'
 import { todayKey } from '../../lib/dates.js'
-import { EVENT_IMAGE, pickText } from '../../lib/events.js'
+import { EVENT_IMAGE, pickText, TAG_COLORS } from '../../lib/events.js'
 import { isHttpUrl, periodError } from '../../lib/validate.js'
 
-function emptyEntry(inCalendar, date) {
+const DEFAULT_COLOR = TAG_COLORS[0].id
+
+// New entries are on the fan calendar by default (an event too; its switch
+// can turn it off).
+function emptyEntry(date) {
   return {
     groupIds: [],
     title: {},
     startDate: date ?? todayKey(),
     endDate: '',
-    inCalendar,
-    color: 'pink',
+    inCalendar: true,
+    color: DEFAULT_COLOR,
     imageUrl: '',
     venue: {},
     targetUrl: '',
   }
 }
 
-function validate(form) {
+function validate(form, isEventForm) {
   const errors = {}
   if (form.groupIds.length === 0) {
     errors.groupIds = '그룹을 하나 이상 고르거나 ALL을 선택해 주세요.'
   }
   if (!form.title.en?.trim()) errors.title = '영어 제목은 꼭 입력해 주세요.'
-  if (form.inCalendar && !form.startDate) errors.date = '날짜를 입력해 주세요.'
-  // The Event coming up card's fields: with a photo, or always when the
-  // entry is only a card.
-  if (form.imageUrl || !form.inCalendar) {
+  if (!isEventForm && !form.startDate) errors.date = '날짜를 입력해 주세요.'
+  if (form.inCalendar && !form.color) errors.color = '태그 색을 골라 주세요.'
+  // The Event coming up card's fields: with a photo, or always in the
+  // event form.
+  if (form.imageUrl || isEventForm) {
     const period = periodError(form)
     if (period) {
       errors.period =
-        form.inCalendar && !form.endDate ? '종료일을 입력해 주세요.' : period
+        !isEventForm && !form.endDate ? '종료일을 입력해 주세요.' : period
     }
     if (!form.imageUrl) errors.imageUrl = '사진을 올려 주세요.'
     if (!form.venue.en?.trim()) errors.venue = '영어 장소는 꼭 입력해 주세요.'
@@ -81,8 +87,11 @@ function toFields(form) {
 
 // 일정 추가 from the calendar (/events/new?date=…): on the fan calendar, and
 // also an Event coming up card when it has a photo. 이벤트 추가 from the
-// Event coming up tab (/events/new?only=event): only the card. Edit:
-// /events/:entryId/edit, in the form it was added with.
+// Event coming up tab (/events/new?only=event): the card (period, photo,
+// venue, link), with a 팬캘린더에도 표시 switch (on for a new event).
+// Edit: /events/:entryId/edit — the event form with ?only=event (the
+// Event coming up tab's edit link) or for an entry not on the calendar,
+// otherwise the calendar form.
 function EntryFormPage() {
   const { entryId } = useParams()
   const fetcher = useCallback(
@@ -95,10 +104,10 @@ function EntryFormPage() {
   )
   const { data, error, reload } = useFetch(fetcher)
   const [searchParams] = useSearchParams()
-  const inCalendar = data?.entry
-    ? data.entry.inCalendar
-    : searchParams.get('only') !== 'event'
-  const title = `${inCalendar ? '일정' : '이벤트'} ${entryId ? '수정' : '추가'}`
+  const isEventForm =
+    searchParams.get('only') === 'event' ||
+    (data?.entry ? !data.entry.inCalendar : false)
+  const title = `${isEventForm ? '이벤트' : '일정'} ${entryId ? '수정' : '추가'}`
 
   return (
     <>
@@ -112,11 +121,14 @@ function EntryFormPage() {
           <EntryForm
             key={entryId ?? 'new'}
             initial={{
-              ...emptyEntry(inCalendar, searchParams.get('date')),
+              ...emptyEntry(searchParams.get('date')),
               ...data.entry,
               endDate: data.entry?.endDate ?? '',
-              color: data.entry?.color ?? 'pink',
+              // Off-calendar entries have no color; the default is only
+              // preselected for when the switch is turned on.
+              color: data.entry?.color ?? DEFAULT_COLOR,
             }}
+            isEventForm={isEventForm}
             groups={data.groups}
           />
         )}
@@ -125,20 +137,20 @@ function EntryFormPage() {
   )
 }
 
-function EntryForm({ initial, groups }) {
+function EntryForm({ initial, isEventForm, groups }) {
   const navigate = useNavigate()
   const [form, setForm] = useState(initial)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [saveFailed, setSaveFailed] = useState(false)
   const set = (key) => (value) => setForm((prev) => ({ ...prev, [key]: value }))
-  const backTo = form.inCalendar
-    ? `/events?date=${form.startDate || todayKey()}`
-    : '/events?tab=events'
+  const backTo = isEventForm
+    ? '/events?tab=events'
+    : `/events?date=${form.startDate || todayKey()}`
 
   async function save(event) {
     event.preventDefault()
-    const found = validate(form)
+    const found = validate(form, isEventForm)
     setErrors(found)
     if (Object.keys(found).length > 0) return
     setSaving(true)
@@ -188,9 +200,11 @@ function EntryForm({ initial, groups }) {
     <form onSubmit={save} noValidate className="max-w-3xl">
       <FormCard cancelTo={backTo} saving={saving} saveFailed={saveFailed}>
         <p className="-mb-2 rounded-lg bg-panel px-4 py-3 text-sm text-muted">
-          {form.inCalendar
+          {!isEventForm
             ? '팬캘린더에 보여요. 사진을 넣으면 Event coming up에도 보여요 (달력에는 사진이 나오지 않아요).'
-            : 'Event coming up 카드로만 보여요. 팬캘린더에는 나오지 않아요.'}
+            : form.inCalendar
+              ? 'Event coming up 카드와 팬캘린더(시작일)에 보여요. 달력에는 사진이 나오지 않아요.'
+              : 'Event coming up 카드로만 보여요. 팬캘린더에는 나오지 않아요.'}
         </p>
 
         <Field
@@ -217,7 +231,7 @@ function EntryForm({ initial, groups }) {
           />
         </Field>
 
-        {form.inCalendar ? (
+        {!isEventForm ? (
           <>
             <Field label="날짜" required htmlFor="date" error={errors.date}>
               <input
@@ -229,7 +243,7 @@ function EntryForm({ initial, groups }) {
                 className={`${inputClass} h-10 max-w-44`}
               />
             </Field>
-            <Field label="태그 색" required>
+            <Field label="태그 색" required error={errors.color}>
               <ColorPicker
                 value={form.color}
                 onChange={set('color')}
@@ -314,6 +328,25 @@ function EntryForm({ initial, groups }) {
               />
             </Field>
             {cardFields}
+            <Field label="팬캘린더에도 표시" error={errors.color}>
+              <div className="flex items-center gap-2.5 text-sm text-muted">
+                <Switch
+                  checked={form.inCalendar}
+                  onChange={set('inCalendar')}
+                  label="팬캘린더에도 표시"
+                />
+                {form.inCalendar
+                  ? '시작일에 팬캘린더 태그로 보여요. 태그 색을 골라 주세요.'
+                  : '팬캘린더에는 나오지 않아요.'}
+              </div>
+              {form.inCalendar && (
+                <ColorPicker
+                  value={form.color}
+                  onChange={set('color')}
+                  sample={pickText(form.title)}
+                />
+              )}
+            </Field>
           </>
         )}
       </FormCard>
