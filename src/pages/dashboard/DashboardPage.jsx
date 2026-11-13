@@ -3,7 +3,7 @@ import { getDashboard } from '../../api/dashboard.js'
 import LoadError from '../../components/LoadError.jsx'
 import PageHeader from '../../components/PageHeader.jsx'
 import { useFetch } from '../../hooks/useFetch.js'
-import { formatKrw } from '../../lib/money.js'
+import { formatAmounts } from '../../lib/money.js'
 import DailyChart from './DailyChart.jsx'
 import PendingInquiries from './PendingInquiries.jsx'
 import PendingRefunds from './PendingRefunds.jsx'
@@ -44,7 +44,7 @@ function Dashboard({ data }) {
         <StatCard
           label="이번 달 결제"
           value={`${payments.thisMonth.paymentCount}건`}
-          note={`${formatKrw(payments.thisMonth.revenue)} · 지난달 ${payments.lastMonth.paymentCount}건`}
+          note={`${formatAmounts(payments.thisMonth.revenues ?? { KRW: payments.thisMonth.revenue })} · 지난달 ${payments.lastMonth.paymentCount}건`}
         />
         <StatCard
           label="답변 대기 문의"
@@ -62,7 +62,7 @@ function Dashboard({ data }) {
           label="플랜 만족도"
           value={
             data.survey.averageRating == null
-              ? '-'
+              ? '—'
               : `${data.survey.averageRating.toFixed(1)} / 5`
           }
           note={

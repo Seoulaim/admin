@@ -37,7 +37,8 @@ function PendingInquiries({ inquiries }) {
                     {inquiry.title}
                   </p>
                   <p className="truncate text-xs text-sub">
-                    {inquiry.nickname} · {formatTimeAgo(inquiry.createdAt)}
+                    {inquiry.nickname ?? '—'} ·{' '}
+                    {formatTimeAgo(inquiry.createdAt)}
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-warn-soft px-2.5 py-0.5 text-xs font-semibold text-warn">

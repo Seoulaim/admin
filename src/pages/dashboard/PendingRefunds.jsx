@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 import Card from '../../components/Card.jsx'
 import { formatTimeAgo } from '../../lib/dates.js'
-import { formatKrw } from '../../lib/money.js'
+import { formatMoney } from '../../lib/money.js'
 
 const MAX_ROWS = 5
 
@@ -32,14 +32,16 @@ function PendingRefunds({ refunds }) {
                 className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-3 hover:bg-chip"
               >
                 <span className="shrink-0 rounded-md bg-chip px-2 py-0.5 text-xs font-semibold text-muted tabular-nums">
-                  {formatKrw(refund.amount)}
+                  {refund.amount == null
+                    ? '—'
+                    : formatMoney(refund.amount, refund.currency ?? 'KRW')}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">
                     {refund.title}
                   </p>
                   <p className="truncate text-xs text-sub">
-                    {refund.nickname} · {formatTimeAgo(refund.createdAt)}
+                    {refund.nickname ?? '—'} · {formatTimeAgo(refund.createdAt)}
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-warn-soft px-2.5 py-0.5 text-xs font-semibold text-warn">
